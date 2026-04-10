@@ -1,0 +1,45 @@
+name: Release All Helm Charts
+
+on:
+  workflow_dispatch:
+
+env:
+  ORG: mzc-cloudops-v2
+
+jobs:
+  dispatch_helm_charts:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - identity
+          - inventory
+          - cost-analysis
+      fail-fast: false
+    steps:
+      - name: Dispatch make_helm_chart to ${{ matrix.service }}
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+          repository: ${{ env.ORG }}/${{ matrix.service }}
+          event-type: make_helm_chart
+
+  # 모든 서비스 차트 빌드 후 CloudOps Chart 빌드
+  cloudops_chart:
+    needs: dispatch_helm_charts
+    uses: ./.github/workflows/make_cloudops_chart.yml
+    secrets: inherit
+
+  notification:
+    needs: [dispatch_helm_charts, cloudops_chart]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ needs.cloudops_chart.result }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow,job,took
+          author_name: CloudOps Release All Charts
+        env:
+          SLACK_WEBHOOK_URL: ${{ vars.SLACK_DEPLOY_HELM_NOTI_WEBHOOK_URL }}

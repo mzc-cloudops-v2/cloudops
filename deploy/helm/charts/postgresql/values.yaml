@@ -1,0 +1,26 @@
+enabled: true
+
+image:
+  repository: postgres
+  pullPolicy: IfNotPresent
+
+port: 5432
+
+auth:
+  username: admin
+  password: password
+  database: cloudops
+
+service:
+  type: ClusterIP
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: 5432
+      protocol: TCP
+
+pvc:
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  storage: 10Gi

@@ -1,0 +1,17 @@
+{{- if .Values.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+{{ include "cloudops.labels" . | indent 4 }}
+    cloudops.service: postgresql
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+{{ toYaml .Values.service.ports | indent 4 }}
+  selector:
+    cloudops.service: postgresql
+  sessionAffinity: None
+{{- end }}

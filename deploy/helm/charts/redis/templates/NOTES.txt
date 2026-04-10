@@ -1,0 +1,4 @@
+CloudOps Redis has been deployed.
+
+Port: {{ .Values.port }}
+Service Type: {{ .Values.service.type }}

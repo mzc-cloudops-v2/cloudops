@@ -1,0 +1,17 @@
+{{- if .Values.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+{{ include "cloudops.labels" . | indent 4 }}
+    cloudops.service: nats
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+{{ toYaml .Values.service.ports | indent 4 }}
+  selector:
+    cloudops.service: nats
+  sessionAffinity: None
+{{- end }}

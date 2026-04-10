@@ -1,0 +1,99 @@
+name: Make CloudOps Chart
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build chart from'
+        required: false
+        default: 'master'
+        type: string
+      version:
+        description: 'Release version (e.g. 1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: read
+
+env:
+  GHCR_ORG: mzc-cloudops-v2
+  GHCR_PREFIX: charts
+
+jobs:
+  cloudops_chart:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Update Chart.yaml version
+        run: |
+          cd deploy/helm
+          sed -i "s/^version:.*/version: ${{ inputs.version }}/" Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${{ inputs.version }}\"/" Chart.yaml
+          echo "Updated Chart.yaml:"
+          head -10 Chart.yaml
+
+      - name: Commit version update
+        run: |
+          git config user.email "cloudops-admin@mz.co.kr"
+          git config user.name "cloudops-admin"
+          git add deploy/helm/Chart.yaml
+          git commit -m "Bump cloudops chart version to ${{ inputs.version }}"
+          git push origin ${{ inputs.branch }}
+
+      - name: Login to GHCR
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io \
+            -u ${{ github.actor }} \
+            --password-stdin
+
+      - name: Pull dependencies from GHCR
+        run: |
+          cd deploy/helm
+          echo "Pulling all service chart dependencies from GHCR..."
+          helm dependency update
+          echo "Dependencies:"
+          helm dependency list
+
+      - name: Package CloudOps chart
+        run: |
+          rm -rf .deploy
+          mkdir -p .deploy
+          helm package deploy/helm --destination .deploy
+          echo "Packaged cloudops chart:"
+          ls -la .deploy/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ inputs.version }}"
+          name: "CloudOps v${{ inputs.version }}"
+          body: |
+            ## CloudOps Chart v${{ inputs.version }}
+          files: .deploy/*.tgz
+          draft: false
+          prerelease: false
+
+  notification:
+    needs: cloudops_chart
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ needs.cloudops_chart.result }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow,job,took
+          author_name: CloudOps Chart Builder
+        env:
+          SLACK_WEBHOOK_URL: ${{ vars.SLACK_DEPLOY_HELM_NOTI_WEBHOOK_URL }}

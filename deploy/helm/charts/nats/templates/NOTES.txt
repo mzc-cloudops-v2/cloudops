@@ -1,0 +1,6 @@
+CloudOps NATS has been deployed.
+
+Client Port: {{ .Values.ports.client }}
+Monitoring Port: {{ .Values.ports.monitoring }}
+JetStream: enabled
+Service Type: {{ .Values.service.type }}

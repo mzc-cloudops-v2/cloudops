@@ -1,0 +1,57 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+{{ include "cloudops.labels" . | indent 4 }}
+    cloudops.service: nats
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      cloudops.service: nats
+  template:
+    metadata:
+      annotations:
+        cloudops.deployment.tool: helm
+      labels:
+{{ include "cloudops.labels" . | indent 8 }}
+        cloudops.service: nats
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.gracePeriod | default 30 }}
+      containers:
+        - name: nats
+          image: "{{ .Values.image.repository }}{{- if .Values.image.tag }}:{{ .Values.image.tag }}{{- end }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: client
+              containerPort: {{ .Values.ports.client }}
+              protocol: TCP
+            - name: monitoring
+              containerPort: {{ .Values.ports.monitoring }}
+              protocol: TCP
+          args:
+            - "-m"
+            - "{{ .Values.ports.monitoring }}"
+            - "--jetstream"
+          readinessProbe:
+            httpGet:
+              path: /healthz?js-enabled-only=true
+              port: {{ .Values.ports.monitoring }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.ports.monitoring }}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+{{- if .Values.pod }}
+{{- if .Values.pod.spec }}
+{{- toYaml .Values.pod.spec | nindent 6 }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,17 @@
+{{- if and .Values.enabled .Values.pvc.storageClassName }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Namespace }}-postgresql-pvc
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+{{ include "cloudops.labels" . | indent 4 }}
+    cloudops.service: postgresql
+spec:
+  storageClassName: {{ .Values.pvc.storageClassName }}
+  accessModes:
+{{ toYaml .Values.pvc.accessModes | indent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.pvc.storage }}
+{{- end }}

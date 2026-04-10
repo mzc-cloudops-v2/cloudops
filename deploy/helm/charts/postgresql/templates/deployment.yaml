@@ -1,0 +1,74 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgresql
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+{{ include "cloudops.labels" . | indent 4 }}
+    cloudops.service: postgresql
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      cloudops.service: postgresql
+  template:
+    metadata:
+      annotations:
+        cloudops.deployment.tool: helm
+      labels:
+{{ include "cloudops.labels" . | indent 8 }}
+        cloudops.service: postgresql
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.gracePeriod | default 30 }}
+      containers:
+        - name: postgresql
+          image: "{{ .Values.image.repository }}{{- if .Values.image.tag }}:{{ .Values.image.tag }}{{- end }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: postgresql
+              containerPort: {{ .Values.port }}
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.auth.username | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.auth.password | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.auth.database | quote }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgresql-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ .Values.auth.username | quote }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ .Values.auth.username | quote }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+{{- if .Values.pod }}
+{{- if .Values.pod.spec }}
+{{- toYaml .Values.pod.spec | nindent 6 }}
+{{- end }}
+{{- end }}
+      volumes:
+        - name: postgresql-data
+{{- if .Values.pvc.storageClassName }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Namespace }}-postgresql-pvc
+{{- else }}
+          emptyDir: {}
+{{- end }}
+{{- end }}

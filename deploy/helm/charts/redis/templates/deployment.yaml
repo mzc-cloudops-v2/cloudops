@@ -1,0 +1,48 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+{{ include "cloudops.labels" . | indent 4 }}
+    cloudops.service: redis
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      cloudops.service: redis
+  template:
+    metadata:
+      annotations:
+        cloudops.deployment.tool: helm
+      labels:
+{{ include "cloudops.labels" . | indent 8 }}
+        cloudops.service: redis
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.gracePeriod | default 30 }}
+      containers:
+        - name: redis
+          image: "{{ .Values.image.repository }}{{- if .Values.image.tag }}:{{ .Values.image.tag }}{{- end }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: redis
+              containerPort: {{ .Values.port }}
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+{{- if .Values.pod }}
+{{- if .Values.pod.spec }}
+{{- toYaml .Values.pod.spec | nindent 6 }}
+{{- end }}
+{{- end }}
+{{- end }}
