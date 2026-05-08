@@ -6,7 +6,7 @@ version: 1.0.0
 appVersion: "1.0.0"
 
 dependencies:
-  - name: skeleton
+  - name: core
     version: "0.1.0"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
-    condition: skeleton.enabled
+    condition: core.enabled

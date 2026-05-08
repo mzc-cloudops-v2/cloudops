@@ -1,100 +1,114 @@
 # ==============================================================================
-# CloudOps Umbrella Helm Chart Values
+# CloudOps v2 Umbrella Helm Values
 # ==============================================================================
-# 설치 가이드:
-#   - [CUSTOM REQUIRED] 항목은 반드시 환경에 맞게 수정
-#   - [OPTIONAL] 항목은 환경에 따라 선택적으로 설정
-#   - anchor(&name) 는 아래 서비스 블록에서 <<: *name 으로 참조됨
+# 구성 원칙 (v2 monolith):
+#   - core: 단일 monolith chart. 환경별 설정은 ``core:`` 블록 아래.
+#   - nats / redis: 인프라 subchart. ``charts/<name>/values.yaml`` 가 정본,
+#                   umbrella 는 enable/disable 또는 cluster-local override 만.
+#   - postgresql: 외부 RDS 사용 — umbrella 에서 subchart 제거됨.
+#   - secret 값: GitHub 에 커밋 X. 배포 시 GitLab CI 가
+#                ``-f values-secret.yaml`` 또는 ``--set secret.existingSecret=...``
+#                로 override.
+#
+# v1 잔재 정리:
+#   - ``common.shared_env`` / ``shared_secret`` anchor 패턴 제거
+#     (multi-MSA 가정 → monolith 로 통일된 v2 에선 무의미).
+#   - ``skeleton:`` 블록 → ``core:`` 로 변경.
+#
+# 설치 예:
+#   helm dependency update deploy/helm
+#   helm registry login ghcr.io -u <gh-user> --password-stdin    # private chart
+#   helm upgrade --install cloudops deploy/helm \
+#     -n cloudopsv2 --create-namespace \
+#     -f deploy/helm/values.yaml \
+#     -f /path/to/values-secret.yaml
 # ==============================================================================
 
-common:
-  # [ADVANCED] 특정 노드에 파드를 할당해야 할 경우 사용
-  node_selector: &commonNodeSelector {}
-
-  # [OPTIONAL] 코어 서비스 이미지 pull 시 사용할 imagePullSecrets
-  image_pull_secret: &imagePullSecret []
-
-  # 공통 non-sensitive env — 서비스 ConfigMap 으로 주입
-  shared_env: &sharedEnv
-    DATABASE_HOST: "postgresql.cloudops.svc.cluster.local"
-    DATABASE_PORT: "5432"
-    DATABASE_NAME: "cloudops"
-    REDIS_HOST: "redis.cloudops.svc.cluster.local"
-    REDIS_PORT: "6379"
-    NATS_URL: "nats://nats.cloudops.svc.cluster.local:4222"
-    LOG_LEVEL: "INFO"
-
-  # 공통 sensitive env — 서비스 Secret 으로 주입
-  # [CUSTOM REQUIRED] 실제 배포 전 값을 교체
-  shared_secret: &sharedSecret
-    DATABASE_USERNAME: "admin"
-    DATABASE_PASSWORD: "changeme"
-    SYSTEM_TOKEN: "changeme"
-
-  # 공통 런타임 conf — 서비스 ConfigMap 으로 /opt/cloudops/shared.yaml 에 마운트
-  # (현재는 비어있음. 추후 handlers/connectors 등이 여기에 들어간다)
-  shared_conf: &sharedConf {}
-
-# ------------------------------------------------------------------------------
-# 이미지 버전
-# ------------------------------------------------------------------------------
-images:
-  # [CUSTOM REQUIRED] Default Service
-  redis: &redisImage
-    repository: redis
-    tag: "7.4.0"
-  nats: &natsImage
-    repository: nats
-    tag: "2.10.0"
-  postgresql: &postgresqlImage
-    repository: postgres
-    tag: "16"
-
-  # [CUSTOM REQUIRED] Core Service
-  skeleton: &skeletonImage
-    repository: <ECR_REGISTRY>/cloudops-dev/skeleton
-    tag: "1.0.0"
-
-# ==============================================================================
-# Default Service
-# ==============================================================================
+# ── 인프라 subchart ────────────────────────────────────────────────────────
 redis:
   enabled: true
-  image:
-    <<: *redisImage
 
 nats:
   enabled: true
-  image:
-    <<: *natsImage
 
-postgresql:
-  enabled: false
-  image:
-    <<: *postgresqlImage
-  auth:
-    username: admin
-    password: password
-    database: cloudops
-  pvc:
-    storageClassName: ""
-    storage: 10Gi
-
-# ==============================================================================
-# Core Service
-# ==============================================================================
-skeleton:
+# ── core (monolith) ────────────────────────────────────────────────────────
+core:
   enabled: true
+  replicas: 2
+
   image:
-    <<: *skeletonImage
-  imagePullSecrets: *imagePullSecret
-  pod:
-    spec:
-      nodeSelector: *commonNodeSelector
+    # [CUSTOM REQUIRED] GitLab CI 가 ECR registry / tag 로 override
+    repository: ""
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  imagePullSecrets:
+    - name: ecr-creds
+
+  service:
+    type: ClusterIP
+    port: 8000
+    containerPort: 8000
+
+  probe:
+    path: /core/health
+
   env:
-    <<: *sharedEnv
-    PACKAGE_NAME: "cloudops.skeleton"
+    # Application
+    PACKAGE_NAME: "cloudops.core"
+    ROOT_PATH: "/core"
+    LOG_LEVEL: "INFO"
+
+    # Authorization (ACS)
+    # ACS 미연동 환경 default. ACS 와 함께 띄우려면 true 로 변경 + ACS_BASE_URL/ACS_API_KEY.
+    AUTHORIZATION_ENABLED: "false"
+    ACS_BASE_URL: ""
+    ACS_SERVICE_NAME: "cloudops.core"
+    ACS_SERVICE_VERSION: "0.1.0"
+    ACS_CACHE_TTL_SECONDS: "5"
+
+    # Database — [CUSTOM REQUIRED] RDS endpoint 로 override
+    DATABASE_HOST: ""
+    DATABASE_PORT: "5432"
+    DATABASE_NAME: "cloudops"
+
+    # 클러스터 내부 redis / nats. 외부 사용 시 override.
+    REDIS_HOST: "redis.cloudopsv2.svc.cluster.local"
+    REDIS_PORT: "6379"
+    NATS_URL: "nats://nats.cloudopsv2.svc.cluster.local:4222"
+
+  # secret 은 values-secret.yaml 또는 existingSecret 으로 주입
   secret:
-    <<: *sharedSecret
-  conf:
-    <<: *sharedConf
+    existingSecret: ""
+
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+
+  # ALB / Nginx Ingress 가 있을 때 enable
+  ingress:
+    enabled: false
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 0
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+    maxUnavailable: ""
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  migration:
+    enabled: true
