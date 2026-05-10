@@ -1,0 +1,60 @@
+# ==============================================================================
+# CloudOps v2 Umbrella — 배포 시점 override 예시
+# ==============================================================================
+# 사용 방법:
+#   1) 본 파일을 복제해 ``values-deploy.yaml`` 등 의미 있는 이름으로 저장.
+#   2) ``<...>`` 자리의 placeholder 를 실제 값으로 채운다 (값은 git 에 X).
+#   3) helm install 시 -f 으로 전달:
+#
+#      helm registry login ghcr.io -u <gh-user> --password-stdin
+#      helm dependency update deploy/helm
+#      helm upgrade --install cloudops deploy/helm \
+#        -n cloudopsv2 --create-namespace \
+#        -f /tmp/values-deploy.yaml
+#
+# 또는 GitLab CI 에서 protected variables 로 override (둘이 등가):
+#   helm upgrade --install cloudops deploy/helm \
+#     -n cloudopsv2 --create-namespace \
+#     --set core.image.repository=$ECR_REGISTRY/cloudops-v2-dev/core \
+#     --set core.image.tag=$IMAGE_TAG \
+#     --set core.env.DATABASE_HOST=$RDS_HOST \
+#     --set core.secret.data.DATABASE_USERNAME=$DB_USER \
+#     --set core.secret.data.DATABASE_PASSWORD=$DB_PASSWORD \
+#     --set core.secret.data.SYSTEM_TOKEN=$SYSTEM_TOKEN
+#
+# placeholder 표기:
+#   <ECR_REGISTRY>     예: 580126104304.dkr.ecr.ap-northeast-2.amazonaws.com
+#   <IMAGE_TAG>        예: 0.0.1.20260508.173246
+#   <RDS_HOST>         예: cloudops-v2-dev.xxxx.ap-northeast-2.rds.amazonaws.com
+#   <DB_USERNAME>      RDS master username
+#   <DB_PASSWORD>      RDS master password
+#   <SYSTEM_TOKEN>     앱 내부 시스템 토큰 (`openssl rand -hex 32` 등)
+# ==============================================================================
+
+core:
+  image:
+    repository: "<ECR_REGISTRY>/cloudops-v2-dev/core"
+    tag: "<IMAGE_TAG>"
+
+  env:
+    # 외부 RDS endpoint
+    DATABASE_HOST: "<RDS_HOST>"
+
+    # 다른 namespace 사용 시 cluster-local svc DNS 도 override (cloudopsv2 면 생략 가능)
+    # REDIS_HOST: "redis.<namespace>.svc.cluster.local"
+    # NATS_URL:   "nats://nats.<namespace>.svc.cluster.local:4222"
+
+  # 비밀값 — 둘 중 하나 사용:
+  #
+  # (a) data 평문 — 본 파일 자체를 gitignore 하고 직접 채운다.
+  secret:
+    data:
+      DATABASE_USERNAME: "<DB_USERNAME>"
+      DATABASE_PASSWORD: "<DB_PASSWORD>"
+      SYSTEM_TOKEN: "<SYSTEM_TOKEN>"
+      # ACS_API_KEY: "<ACS_API_KEY>"   # AUTHORIZATION_ENABLED=true 일 때만
+
+  # (b) 외부 Secret 참조 — 위의 secret.data 와 둘 중 하나만 사용한다.
+  #     existingSecret 이 비어있지 않으면 chart 는 자체 Secret 을 만들지 않는다.
+  # secret:
+  #   existingSecret: cloudops-core-secret

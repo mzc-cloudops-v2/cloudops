@@ -1,2 +1,11 @@
 .DS_Store
 .idea/
+
+# Helm — 배포 시점 override 파일 (예시 *.example.yaml 만 커밋)
+deploy/helm/values-deploy.yaml
+deploy/helm/values-deploy.*.yaml
+!deploy/helm/values-deploy.example.yaml
+
+# helm dependency update 가 만드는 packaging 결과 (재현 가능하므로 커밋 X)
+deploy/helm/charts/core-*.tgz
+deploy/helm/Chart.lock

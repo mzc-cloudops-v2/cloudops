@@ -2,26 +2,21 @@
 # CloudOps v2 Umbrella Helm Values
 # ==============================================================================
 # 구성 원칙 (v2 monolith):
-#   - core: 단일 monolith chart. 환경별 설정은 ``core:`` 블록 아래.
-#   - nats / redis: 인프라 subchart. ``charts/<name>/values.yaml`` 가 정본,
-#                   umbrella 는 enable/disable 또는 cluster-local override 만.
-#   - postgresql: 외부 RDS 사용 — umbrella 에서 subchart 제거됨.
-#   - secret 값: GitHub 에 커밋 X. 배포 시 GitLab CI 가
-#                ``-f values-secret.yaml`` 또는 ``--set secret.existingSecret=...``
-#                로 override.
+#   - core: 단일 monolith chart. 환경별 default 는 core chart 의 values.yaml 이
+#           들고 있고, umbrella 는 enable 만 하거나 매 배포마다 바뀌는 값
+#           (image / DATABASE_HOST / secret) 만 helm install 시 -f / --set 으로
+#           override.
+#   - nats / redis: 인프라 subchart. 자기 chart values 가 정본.
+#   - postgresql: 외부 RDS — subchart 없음.
 #
-# v1 잔재 정리:
-#   - ``common.shared_env`` / ``shared_secret`` anchor 패턴 제거
-#     (multi-MSA 가정 → monolith 로 통일된 v2 에선 무의미).
-#   - ``skeleton:`` 블록 → ``core:`` 로 변경.
+# 매 배포마다 채우는 값은 ``values-deploy.example.yaml`` 참고 (gitignore 권장).
 #
-# 설치 예:
+# 설치 예 (private OCI chart 라 GHCR login 필요):
+#   helm registry login ghcr.io -u <gh-user> --password-stdin
 #   helm dependency update deploy/helm
-#   helm registry login ghcr.io -u <gh-user> --password-stdin    # private chart
 #   helm upgrade --install cloudops deploy/helm \
 #     -n cloudopsv2 --create-namespace \
-#     -f deploy/helm/values.yaml \
-#     -f /path/to/values-secret.yaml
+#     -f /tmp/values-deploy.yaml
 # ==============================================================================
 
 # ── 인프라 subchart ────────────────────────────────────────────────────────
@@ -32,83 +27,9 @@ nats:
   enabled: true
 
 # ── core (monolith) ────────────────────────────────────────────────────────
+# core chart 의 values.yaml 이 cloudopsv2 namespace 기준의 안전한 default 를
+# 모두 들고 있다. umbrella 는 dependency on/off 만 결정하고, 매 배포마다
+# 바뀌는 값 (image / DATABASE_HOST / secret) 은 ``values-deploy.example.yaml``
+# 을 참고해 helm install 시 -f / --set 으로 주입한다.
 core:
   enabled: true
-  replicas: 2
-
-  image:
-    # [CUSTOM REQUIRED] GitLab CI 가 ECR registry / tag 로 override
-    repository: ""
-    tag: "latest"
-    pullPolicy: IfNotPresent
-
-  imagePullSecrets:
-    - name: ecr-creds
-
-  service:
-    type: ClusterIP
-    port: 8000
-    containerPort: 8000
-
-  probe:
-    path: /core/health
-
-  env:
-    # Application
-    PACKAGE_NAME: "cloudops.core"
-    ROOT_PATH: "/core"
-    LOG_LEVEL: "INFO"
-
-    # Authorization (ACS)
-    # ACS 미연동 환경 default. ACS 와 함께 띄우려면 true 로 변경 + ACS_BASE_URL/ACS_API_KEY.
-    AUTHORIZATION_ENABLED: "false"
-    ACS_BASE_URL: ""
-    ACS_SERVICE_NAME: "cloudops.core"
-    ACS_SERVICE_VERSION: "0.1.0"
-    ACS_CACHE_TTL_SECONDS: "5"
-
-    # Database — [CUSTOM REQUIRED] RDS endpoint 로 override
-    DATABASE_HOST: ""
-    DATABASE_PORT: "5432"
-    DATABASE_NAME: "cloudops"
-
-    # 클러스터 내부 redis / nats. 외부 사용 시 override.
-    REDIS_HOST: "redis.cloudopsv2.svc.cluster.local"
-    REDIS_PORT: "6379"
-    NATS_URL: "nats://nats.cloudopsv2.svc.cluster.local:4222"
-
-  # secret 은 values-secret.yaml 또는 existingSecret 으로 주입
-  secret:
-    existingSecret: ""
-
-  serviceAccount:
-    create: true
-    name: ""
-    annotations: {}
-
-  # ALB / Nginx Ingress 가 있을 때 enable
-  ingress:
-    enabled: false
-
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 80
-    targetMemoryUtilizationPercentage: 0
-
-  podDisruptionBudget:
-    enabled: true
-    minAvailable: 1
-    maxUnavailable: ""
-
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
-
-  migration:
-    enabled: true
