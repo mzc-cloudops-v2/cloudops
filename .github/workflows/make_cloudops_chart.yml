@@ -29,6 +29,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.branch }}
+          # chart-releaser 가 origin/gh-pages 를 참조하려면 모든 ref 가
+          # 필요하다. fetch-depth=0 으로 전체 history + remote refs 를 받는다.
+          fetch-depth: 0
 
       - name: Setup Helm
         uses: azure/setup-helm@v4
@@ -48,8 +51,12 @@ jobs:
           git config user.email "cloudops-admin@mz.co.kr"
           git config user.name "cloudops-admin"
           git add deploy/helm/Chart.yaml
-          git commit -m "Bump cloudops chart version to ${{ inputs.version }}"
-          git push origin ${{ inputs.branch }}
+          if git diff --staged --quiet; then
+            echo "Chart.yaml already at ${{ inputs.version }} — skipping commit."
+          else
+            git commit -m "Bump cloudops chart version to ${{ inputs.version }}"
+            git push origin ${{ inputs.branch }}
+          fi
 
       - name: Login to GHCR
         run: |
