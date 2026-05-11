@@ -2,6 +2,21 @@ apiVersion: v1
 entries:
   mzc-cloudops-v2:
   - apiVersion: v2
+    appVersion: 0.0.5
+    created: "2026-05-11T07:23:13.409945286Z"
+    dependencies:
+    - condition: core.enabled
+      name: core
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.1.3
+    description: CloudOps v2 Umbrella Helm Chart
+    digest: 62ce66a751fb34826e17b056bb9a603bed4bec65c85fe674afa95281021aa5bd
+    name: mzc-cloudops-v2
+    type: application
+    urls:
+    - https://github.com/mzc-cloudops-v2/cloudops/releases/download/mzc-cloudops-v2-0.0.5/mzc-cloudops-v2-0.0.5.tgz
+    version: 0.0.5
+  - apiVersion: v2
     appVersion: 0.0.4
     created: "2026-05-11T07:22:02.365321264Z"
     dependencies:
@@ -31,4 +46,4 @@ entries:
     urls:
     - https://github.com/mzc-cloudops-v2/cloudops/releases/download/mzc-cloudops-v2-0.0.3/mzc-cloudops-v2-0.0.3.tgz
     version: 0.0.3
-generated: "2026-05-11T07:22:02.365329569Z"
+generated: "2026-05-11T07:23:13.409960739Z"
