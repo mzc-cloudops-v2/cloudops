@@ -29,6 +29,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.branch }}
+          # chart-releaser 가 origin/gh-pages 를 참조하려면 모든 ref 가
+          # 필요하다. fetch-depth=0 으로 전체 history + remote refs 를 받는다.
+          fetch-depth: 0
 
       - name: Setup Helm
         uses: azure/setup-helm@v4
