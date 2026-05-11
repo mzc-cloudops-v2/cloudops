@@ -79,6 +79,12 @@ jobs:
           helm package deploy/helm --destination .deploy
           echo "Packaged cloudops chart:"
           ls -la .deploy/
+          # 이후 gh-pages checkout 이 workspace 를 갈아끼우므로 tgz 를
+          # workspace 밖 영구 위치로 backup. legacy 와 동일 패턴.
+          mkdir -p /tmp/cr-packages
+          cp .deploy/*.tgz /tmp/cr-packages/
+          echo "Backed up to /tmp/cr-packages:"
+          ls -la /tmp/cr-packages/
 
       # cr (chart-releaser) CLI 를 직접 호출한다. 이전엔
       # helm/chart-releaser-action@v1.6.0 wrap 을 썼는데, 그 wrap 의
@@ -113,22 +119,45 @@ jobs:
           cr upload \
             --owner "${{ github.repository_owner }}" \
             --git-repo "$(basename ${{ github.repository }})" \
-            --package-path .deploy \
+            --package-path /tmp/cr-packages \
             --token "$CR_TOKEN" \
             --skip-existing
+
+      # `cr index --push` 모드는 자체 git worktree 를 만들면서 atomic write
+      # 임시파일 path 처리에서 깨진다 (v1.6.1 quirk:
+      # `open .cr-index/index.yaml<random>: no such file or directory`).
+      # legacy `CI_make_helm_chart.yaml` 와 동일하게 gh-pages 를 별도
+      # 디렉토리에 actions/checkout 으로 받고, cr index 는 `--push` 없이
+      # 단순 호출, 그 다음 git push 는 수동으로 처리한다.
+      - name: Checkout gh-pages worktree
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+          fetch-depth: 1
 
       - name: Update index.yaml on gh-pages
         env:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: gh-pages
         run: |
           cr index \
-            --owner "${{ github.repository_owner }}" \
-            --git-repo "$(basename ${{ github.repository }})" \
-            --package-path .deploy \
-            --token "$CR_TOKEN" \
-            --push \
-            --pages-branch gh-pages \
-            --index-path .cr-index/index.yaml
+            -i ./index.yaml \
+            -p /tmp/cr-packages \
+            -o "${{ github.repository_owner }}" \
+            -r "$(basename ${{ github.repository }})" \
+            --token "$CR_TOKEN"
+
+          if git diff --quiet; then
+            echo "index.yaml unchanged — nothing to commit"
+          else
+            git config user.email "cloudops-admin@mz.co.kr"
+            git config user.name "cloudops-admin"
+            git add index.yaml
+            git commit -m "Update index.yaml for ${{ inputs.version }}"
+            git pull --rebase origin gh-pages
+            git push origin gh-pages
+          fi
 
   notification:
     needs: cloudops_chart
