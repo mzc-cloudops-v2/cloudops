@@ -7,6 +7,6 @@ appVersion: "1.0.0"
 
 dependencies:
   - name: core
-    version: "0.1.1"
+    version: "0.1.2"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: core.enabled
