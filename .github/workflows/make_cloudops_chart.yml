@@ -48,8 +48,12 @@ jobs:
           git config user.email "cloudops-admin@mz.co.kr"
           git config user.name "cloudops-admin"
           git add deploy/helm/Chart.yaml
-          git commit -m "Bump cloudops chart version to ${{ inputs.version }}"
-          git push origin ${{ inputs.branch }}
+          if git diff --staged --quiet; then
+            echo "Chart.yaml already at ${{ inputs.version }} — skipping commit."
+          else
+            git commit -m "Bump cloudops chart version to ${{ inputs.version }}"
+            git push origin ${{ inputs.branch }}
+          fi
 
       - name: Login to GHCR
         run: |
