@@ -80,34 +80,55 @@ jobs:
           echo "Packaged cloudops chart:"
           ls -la .deploy/
 
-      # chart-releaser 가 gh-pages 브랜치에 index.yaml 을 갱신하고,
-      # 각 차트 tgz 를 GitHub Release 로 함께 발행한다. 사용자는
+      # cr (chart-releaser) CLI 를 직접 호출한다. 이전엔
+      # helm/chart-releaser-action@v1.6.0 wrap 을 썼는데, 그 wrap 의
+      # cr.sh line 109 에 `latest_tag: unbound variable` 버그가 있어서
+      # `mark_as_latest` 값과 무관하게 매번 죽었다. legacy 의
+      # `CI_make_helm_chart.yaml` 와 동일하게 cr CLI 만 사용해 회피.
+      #
+      # 사용자 흐름:
       #   helm repo add cloudops https://mzc-cloudops-v2.github.io/cloudops
       #   helm repo update
-      #   helm install cloudops cloudops/cloudops --version <X.Y.Z>
-      # 흐름으로 설치할 수 있다.
+      #   helm install cloudops cloudops/mzc-cloudops-v2 --version <X.Y.Z>
       #
-      # 사전 준비 (한 번만): repo Settings → Pages → Source 를 `gh-pages` /
-      # `/ (root)` 로 지정. chart-releaser 가 처음 돌면서 브랜치가 만들어진다.
-      - name: Configure git identity for chart-releaser
+      # 사전 준비 (한 번만): repo Settings → Pages → Source = `gh-pages`
+      # branch / `/ (root)`. 브랜치는 이미 out-of-band 로 만들어 둠.
+      - name: Configure git identity
         run: |
           git config user.email "cloudops-admin@mz.co.kr"
           git config user.name "cloudops-admin"
 
-      - name: Publish chart to helm repo (gh-pages) + GitHub Release
-        uses: helm/chart-releaser-action@v1.6.0
-        with:
-          skip_packaging: true
-          skip_existing: true
-          # mark_as_latest 의 action default 는 true 인데, v1.6.0 의 cr.sh
-          # 는 이 분기에서 `latest_tag: unbound variable` 로 죽는다.
-          # 줄 자체를 빼면 default true 가 적용되므로 반드시 false 로
-          # 명시한다. GitHub Releases UI 는 가장 최근 tag 를 자동으로
-          # latest 로 잡으므로 사용자 입장 동작은 동일.
-          mark_as_latest: "false"
+      - name: Install chart-releaser (cr) CLI
+        run: |
+          curl -sSLo cr.tar.gz "https://github.com/helm/chart-releaser/releases/download/v1.6.1/chart-releaser_1.6.1_linux_amd64.tar.gz"
+          tar -xzf cr.tar.gz
+          sudo mv cr /usr/local/bin/
+          rm -f cr.tar.gz
+          cr version
+
+      - name: Upload chart tarballs to GitHub Releases
         env:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CR_PACKAGE_PATH: .deploy
+        run: |
+          cr upload \
+            --owner "${{ github.repository_owner }}" \
+            --git-repo "$(basename ${{ github.repository }})" \
+            --package-path .deploy \
+            --token "$CR_TOKEN" \
+            --skip-existing
+
+      - name: Update index.yaml on gh-pages
+        env:
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cr index \
+            --owner "${{ github.repository_owner }}" \
+            --git-repo "$(basename ${{ github.repository }})" \
+            --package-path .deploy \
+            --token "$CR_TOKEN" \
+            --push \
+            --pages-branch gh-pages \
+            --index-path .cr-index/index.yaml
 
   notification:
     needs: cloudops_chart
