@@ -73,16 +73,29 @@ jobs:
           echo "Packaged cloudops chart:"
           ls -la .deploy/
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      # chart-releaser 가 gh-pages 브랜치에 index.yaml 을 갱신하고,
+      # 각 차트 tgz 를 GitHub Release 로 함께 발행한다. 사용자는
+      #   helm repo add cloudops https://mzc-cloudops-v2.github.io/cloudops
+      #   helm repo update
+      #   helm install cloudops cloudops/cloudops --version <X.Y.Z>
+      # 흐름으로 설치할 수 있다.
+      #
+      # 사전 준비 (한 번만): repo Settings → Pages → Source 를 `gh-pages` /
+      # `/ (root)` 로 지정. chart-releaser 가 처음 돌면서 브랜치가 만들어진다.
+      - name: Configure git identity for chart-releaser
+        run: |
+          git config user.email "cloudops-admin@mz.co.kr"
+          git config user.name "cloudops-admin"
+
+      - name: Publish chart to helm repo (gh-pages) + GitHub Release
+        uses: helm/chart-releaser-action@v1.6.0
         with:
-          tag_name: "v${{ inputs.version }}"
-          name: "CloudOps v${{ inputs.version }}"
-          body: |
-            ## CloudOps Chart v${{ inputs.version }}
-          files: .deploy/*.tgz
-          draft: false
-          prerelease: false
+          skip_packaging: true
+          skip_existing: true
+          mark_as_latest: true
+        env:
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CR_PACKAGE_PATH: .deploy
 
   notification:
     needs: cloudops_chart
