@@ -99,9 +99,12 @@ jobs:
         with:
           skip_packaging: true
           skip_existing: true
-          # mark_as_latest 는 v1.6.0 에서 첫 실행 시
-          # `latest_tag: unbound variable` 로 죽는다. GitHub 가 가장 최근
-          # tag 를 자동으로 latest 로 잡으므로 옵션 없이도 사실상 동일.
+          # mark_as_latest 의 action default 는 true 인데, v1.6.0 의 cr.sh
+          # 는 이 분기에서 `latest_tag: unbound variable` 로 죽는다.
+          # 줄 자체를 빼면 default true 가 적용되므로 반드시 false 로
+          # 명시한다. GitHub Releases UI 는 가장 최근 tag 를 자동으로
+          # latest 로 잡으므로 사용자 입장 동작은 동일.
+          mark_as_latest: "false"
         env:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CR_PACKAGE_PATH: .deploy
