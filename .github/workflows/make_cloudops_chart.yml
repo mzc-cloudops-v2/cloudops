@@ -99,7 +99,9 @@ jobs:
         with:
           skip_packaging: true
           skip_existing: true
-          mark_as_latest: true
+          # mark_as_latest 는 v1.6.0 에서 첫 실행 시
+          # `latest_tag: unbound variable` 로 죽는다. GitHub 가 가장 최근
+          # tag 를 자동으로 latest 로 잡으므로 옵션 없이도 사실상 동일.
         env:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CR_PACKAGE_PATH: .deploy
