@@ -2,8 +2,8 @@ apiVersion: v2
 name: mzc-cloudops-v2
 description: CloudOps v2 Umbrella Helm Chart
 type: application
-version: 0.0.4
-appVersion: "0.0.4"
+version: 0.0.5
+appVersion: "0.0.5"
 
 dependencies:
   - name: core
