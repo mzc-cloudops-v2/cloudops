@@ -1,26 +1,34 @@
 {{/*
-Auto-create Namespace resources for any subchart that declares its own
-`namespace` key in values.yaml and differs from the release namespace.
+Auto-create Namespace resources derived from `.Values.global.namespace`:
 
-예시: `plugin-aws-resource-collector.namespace = cloudopsv2-plugin`.
+  1) `<global.namespace>` 자체 — release namespace 와 다를 때만 (helm install -n
+     으로 따로 지정하는 경우가 있어, 같으면 helm 이 처리하도록 skip).
+  2) `<global.namespace>-plugin` — plugin chart 가 helper 로 derive 하는 namespace.
 
-릴리스 namespace 와 동일하면 helm 이 알아서 만들거나 `--create-namespace`
-로 처리되므로 여기서 다시 만들지 않는다. 중복 namespace 는 한 번만 생성한다.
+global.namespace 가 비어 있으면 어떤 Namespace 도 만들지 않는다 (단독 release ns
+배포로 간주, 사용자가 helm install --create-namespace 등으로 해결).
 */}}
-{{- $seen := dict -}}
-{{- range $key, $val := .Values -}}
-{{- if kindIs "map" $val -}}
-{{- $ns := index $val "namespace" -}}
-{{- if and $ns (ne $ns $.Release.Namespace) (not (hasKey $seen $ns)) -}}
-{{- $_ := set $seen $ns true -}}
+{{- $globalNs := default "" .Values.global.namespace -}}
+{{- if $globalNs -}}
+{{- if ne $globalNs .Release.Namespace }}
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{ $ns | quote }}
+  name: {{ $globalNs | quote }}
   labels:
-    app.kubernetes.io/managed-by: {{ $.Release.Service }}
-    app.kubernetes.io/instance: {{ $.Release.Name }}
-{{- end -}}
-{{- end -}}
-{{- end -}}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+{{- $pluginNs := printf "%s-plugin" $globalNs }}
+{{- if ne $pluginNs .Release.Namespace }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $pluginNs | quote }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+{{- end }}

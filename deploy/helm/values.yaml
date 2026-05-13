@@ -19,6 +19,18 @@
 #     -f /tmp/values-deploy.yaml
 # ==============================================================================
 
+# ── 전역(공용) 값 ──────────────────────────────────────────────────────────
+# 모든 subchart 가 공유하는 값. helm 의 표준 메커니즘에 따라 subchart 의
+# ``.Values.global`` 으로 자동 주입된다.
+#
+# ``namespace`` 정책:
+#   - core / nats / redis 는 release namespace 에 install (helm install -n <ns>).
+#   - plugin namespace 는 helper 가 ``{global.namespace}-plugin`` 으로 자동 derive
+#     (예: global.namespace=cloudopsv2 → plugin namespace=cloudopsv2-plugin).
+#   - 두 namespace 모두 templates/namespaces.yaml 가 자동 생성한다.
+global:
+  namespace: "cloudopsv2"
+
 # ── 인프라 subchart ────────────────────────────────────────────────────────
 redis:
   enabled: true
@@ -39,10 +51,8 @@ core:
     enabled: false
 
 # ── plugin: AWS resource collector ────────────────────────────────────────
-# umbrella 는 enable/disable + namespace 만. 이미지 / env override 는 매 배포마다
-# 채우는 값으로 helm install -f values-deploy.yaml 또는 --set 으로 주입.
-# namespace 는 release namespace 와 분리 — umbrella 의 templates/namespaces.yaml
-# 가 자동으로 Namespace 리소스를 만든다.
+# umbrella 는 enable/disable 만. namespace 는 global.namespace 로부터 helper 가
+# 자동 derive 하고, NATS_URL 도 자동 도출되므로 별도 키 불필요. 이미지 / 그 외 env
+# override 는 helm install -f values-deploy.yaml 또는 --set 으로 주입.
 plugin-aws-resource-collector:
   enabled: true
-  namespace: "cloudopsv2-plugin"
