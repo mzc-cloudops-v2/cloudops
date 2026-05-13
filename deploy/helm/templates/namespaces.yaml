@@ -5,12 +5,15 @@ Auto-create Namespace resources derived from `.Values.global.namespace`:
      으로 따로 지정하는 경우가 있어, 같으면 helm 이 처리하도록 skip).
   2) `<global.namespace>-plugin` — plugin chart 가 helper 로 derive 하는 namespace.
 
+각 Namespace 는 lookup 으로 cluster 에 이미 존재하면 skip — 외부에서 미리 만든
+namespace 와 ownership 충돌이 나지 않도록 한다.
+
 global.namespace 가 비어 있으면 어떤 Namespace 도 만들지 않는다 (단독 release ns
 배포로 간주, 사용자가 helm install --create-namespace 등으로 해결).
 */}}
 {{- $globalNs := default "" .Values.global.namespace -}}
 {{- if $globalNs -}}
-{{- if ne $globalNs .Release.Namespace }}
+{{- if and (ne $globalNs .Release.Namespace) (not (lookup "v1" "Namespace" "" $globalNs)) }}
 ---
 apiVersion: v1
 kind: Namespace
@@ -21,7 +24,7 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- $pluginNs := printf "%s-plugin" $globalNs }}
-{{- if ne $pluginNs .Release.Namespace }}
+{{- if and (ne $pluginNs .Release.Namespace) (not (lookup "v1" "Namespace" "" $pluginNs)) }}
 ---
 apiVersion: v1
 kind: Namespace
