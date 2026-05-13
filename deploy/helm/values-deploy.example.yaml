@@ -23,12 +23,15 @@
 #     --set core.secret.data.SYSTEM_TOKEN=$SYSTEM_TOKEN
 #
 # placeholder 표기:
-#   <ECR_REGISTRY>     예: 580126104304.dkr.ecr.ap-northeast-2.amazonaws.com
-#   <IMAGE_TAG>        예: 0.0.1.20260508.173246
-#   <RDS_HOST>         예: cloudops-v2-dev.xxxx.ap-northeast-2.rds.amazonaws.com
-#   <DB_USERNAME>      RDS master username
-#   <DB_PASSWORD>      RDS master password
-#   <SYSTEM_TOKEN>     앱 내부 시스템 토큰 (`openssl rand -hex 32` 등)
+#   <ECR_REGISTRY>           예: 580126104304.dkr.ecr.ap-northeast-2.amazonaws.com
+#   <IMAGE_TAG>              예: 0.0.1.20260508.173246
+#   <RDS_HOST>               예: cloudops-v2-dev.xxxx.ap-northeast-2.rds.amazonaws.com
+#   <DB_USERNAME>            RDS master username
+#   <DB_PASSWORD>            RDS master password
+#   <SYSTEM_TOKEN>           앱 내부 시스템 토큰 (`openssl rand -hex 32` 등)
+#   <KMS_KEY_ARN>            예: arn:aws:kms:ap-northeast-2:<acct>:key/<uuid>
+#   <AWS_ACCESS_KEY_ID>      secret 도메인이 KMS / Secrets Manager 호출 시 사용
+#   <AWS_SECRET_ACCESS_KEY>
 # ==============================================================================
 
 core:
@@ -53,6 +56,14 @@ core:
       DATABASE_PASSWORD: "<DB_PASSWORD>"
       SYSTEM_TOKEN: "<SYSTEM_TOKEN>"
       # ACS_API_KEY: "<ACS_API_KEY>"   # AUTHORIZATION_ENABLED=true 일 때만
+
+      # secret 도메인 (KMS / Secrets Manager) — KMS_KEY_ID / AWS_REGION_NAME 은
+      # core 의 SecretSettings 가 명시 참조. AWS_ACCESS_KEY_ID /
+      # AWS_SECRET_ACCESS_KEY 는 boto3 standard credential chain 이 자동 인식.
+      KMS_KEY_ID: "<KMS_KEY_ARN>"
+      AWS_REGION_NAME: "ap-northeast-2"
+      AWS_ACCESS_KEY_ID: "<AWS_ACCESS_KEY_ID>"
+      AWS_SECRET_ACCESS_KEY: "<AWS_SECRET_ACCESS_KEY>"
 
   # (b) 외부 Secret 참조 — 위의 secret.data 와 둘 중 하나만 사용한다.
   #     existingSecret 이 비어있지 않으면 chart 는 자체 Secret 을 만들지 않는다.
