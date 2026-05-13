@@ -37,3 +37,9 @@ core:
   # 활성화가 필요하면 환경별 values 에서 `core.migration.enabled: true` 로 override.
   migration:
     enabled: false
+
+# ── plugin: AWS resource collector ────────────────────────────────────────
+# umbrella 는 enable/disable 만. 이미지 / env override 는 매 배포마다 채우는
+# 값으로 helm install -f values-deploy.yaml 또는 --set 으로 주입.
+plugin-aws-resource-collector:
+  enabled: true
