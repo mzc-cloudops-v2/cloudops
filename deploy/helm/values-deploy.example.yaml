@@ -47,6 +47,15 @@ core:
     # REDIS_HOST: "redis.<namespace>.svc.cluster.local"
     # NATS_URL:   "nats://nats.<namespace>.svc.cluster.local:4222"
 
+    # NATS JetStream stream retention (TPM-652). chart default = base 의
+    # CloudOpsBaseSettings default (max_age=3d / max_bytes=5GB). 디스크 capacity
+    # 또는 보존 윈도우를 환경별로 조정해야 할 때만 override.
+    #   - NATS_STREAM_MAX_AGE_SECONDS: 메시지 보존 기간 (초). 예: 7일 = 604800
+    #   - NATS_STREAM_MAX_BYTES: stream 당 최대 디스크 사용량 (바이트). 7 stream
+    #     공통값이라 총 사용량은 (값 × 7). NATS PVC capacity 에 맞춰 산정.
+    # NATS_STREAM_MAX_AGE_SECONDS: "604800"
+    # NATS_STREAM_MAX_BYTES:       "10737418240"   # 10 GB
+
   # 비밀값 — 둘 중 하나 사용:
   #
   # (a) data 평문 — 본 파일 자체를 gitignore 하고 직접 채운다.
