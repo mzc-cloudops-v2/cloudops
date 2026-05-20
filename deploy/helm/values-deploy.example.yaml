@@ -59,14 +59,17 @@ core:
   # Cron scheduler 활성화 (TPM-130). main core deployment (REST/NATS, replicas=N)
   # 와 같은 image 를 쓰는 별도 ``core-scheduler`` deployment 를 띄운다.
   # ``replicas: 1`` 강제 — 분산 환경에서 cron 중복 발화 방지 (leader-election 없음).
-  # ``paths`` 는 도메인 cron 모듈 dotted-path 목록. 첫 cron 도메인 적용 PR 에서
-  # 채워진다 — 그 전엔 빈 list 로 두어도 chart 가 정상 install 된다 (cron 0 개).
+  #
+  # ``paths`` 는 도메인 cron 모듈 dotted-path 목록. core 0.1.6 subchart 의
+  # default 가 이미 daily-collect (``collection_job.adapter.inbound.scheduler``)
+  # 를 포함하므로 운영자는 ``enabled: true`` 만 주면 된다. 추가 cron 도메인이
+  # 생기면 그 모듈 경로를 append (default 와 합쳐지지 않으므로 default 도 함께
+  # 다시 명시해야 한다).
   scheduler:
     enabled: true
-    paths: []
-    # 예: 첫 cron 적용 후
     # paths:
     #   - cloudops.core.resource.collection_job.adapter.inbound.scheduler
+    #   - cloudops.core.<other_context>.<other_domain>.adapter.inbound.scheduler
 
   # 비밀값 — 둘 중 하나 사용:
   #
