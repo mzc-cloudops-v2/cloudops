@@ -60,16 +60,50 @@ core:
   # 와 같은 image 를 쓰는 별도 ``core-scheduler`` deployment 를 띄운다.
   # ``replicas: 1`` 강제 — 분산 환경에서 cron 중복 발화 방지 (leader-election 없음).
   #
-  # ``paths`` 는 도메인 cron 모듈 dotted-path 목록. core 0.1.6 subchart 의
+  # ``paths`` 는 도메인 cron 모듈 dotted-path 목록. core 0.1.7 subchart 의
   # default 가 이미 daily-collect (``collection_job.adapter.inbound.scheduler``)
   # 를 포함하므로 운영자는 ``enabled: true`` 만 주면 된다. 추가 cron 도메인이
   # 생기면 그 모듈 경로를 append (default 와 합쳐지지 않으므로 default 도 함께
   # 다시 명시해야 한다).
+  #
+  # ``jobs`` 는 ``@task(name=...)`` 키 기반 per-job override dict (TPM-130). 코드
+  # default 가 정답인 경우엔 키 자체를 생략하고, 환경별로 바꾸고 싶은 필드만 명시
+  # 한다. base 의 ``ScheduledJobOverride`` (extra='forbid') 가 부팅 시 알 수 없는
+  # 키를 ValidationError 로 거른다.
+  #
+  # 7 필드 override 화이트리스트 — 모두 optional. 미지정 시 ``@task`` spec default:
+  #   cron               : 5-field cron 표현식 (예: "*/5 * * * *", "0 1 * * *")
+  #                        CronTrigger.from_crontab 이 부팅 시 유효성 검증.
+  #   enabled            : false 면 add_job 단계에서 skip — 일시 비활성화 용도.
+  #   timezone           : CronTrigger TZ (예: "UTC", "Asia/Seoul").
+  #                        미지정 시 settings.scheduler_timezone (default Asia/Seoul).
+  #   misfire_grace_time : 발화 시각 누락 허용(초). 이내면 실행, 초과면 misfire.
+  #   max_instances      : 동일 job 동시 인스턴스 상한 (default 1).
+  #   coalesce           : true 면 밀린 다중 발화를 한 번으로 합침 (default true).
+  #   jitter_sec         : 발화 시각에 더할 임의 jitter (초). 분산 부하 분산용.
+  #
+  # 매칭 키 = ``@task(name=...)``. 현재 등록된 도메인 job:
+  #   - daily-collect    (cloudops.core.resource.collection_job, spec: "0 1 * * *" Asia/Seoul)
   scheduler:
     enabled: true
     # paths:
     #   - cloudops.core.resource.collection_job.adapter.inbound.scheduler
     #   - cloudops.core.<other_context>.<other_domain>.adapter.inbound.scheduler
+
+    # 환경별 cron / 활성화 override 예시 — 필요한 필드만 채워 사용.
+    # jobs:
+    #   daily-collect:
+    #     cron: "*/5 * * * *"        # dev 만 5분 단위로 자주 수집
+    #     timezone: "UTC"
+    #     jitter_sec: 30
+    #   # 일시 비활성화 패턴 (운영 중 무단 발화 차단)
+    #   # daily-collect:
+    #   #   enabled: false
+    #   # 동시성/지각 발화 정책 조정 패턴
+    #   # heavy-cleanup:
+    #   #   max_instances: 1
+    #   #   coalesce: true
+    #   #   misfire_grace_time: 300
 
   # 비밀값 — 둘 중 하나 사용:
   #
