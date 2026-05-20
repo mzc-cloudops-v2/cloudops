@@ -56,6 +56,18 @@ core:
     # NATS_STREAM_MAX_AGE_SECONDS: "604800"
     # NATS_STREAM_MAX_BYTES:       "10737418240"   # 10 GB
 
+  # Cron scheduler 활성화 (TPM-130). main core deployment (REST/NATS, replicas=N)
+  # 와 같은 image 를 쓰는 별도 ``core-scheduler`` deployment 를 띄운다.
+  # ``replicas: 1`` 강제 — 분산 환경에서 cron 중복 발화 방지 (leader-election 없음).
+  # ``paths`` 는 도메인 cron 모듈 dotted-path 목록. 첫 cron 도메인 적용 PR 에서
+  # 채워진다 — 그 전엔 빈 list 로 두어도 chart 가 정상 install 된다 (cron 0 개).
+  scheduler:
+    enabled: true
+    paths: []
+    # 예: 첫 cron 적용 후
+    # paths:
+    #   - cloudops.core.resource.collection_job.adapter.inbound.scheduler
+
   # 비밀값 — 둘 중 하나 사용:
   #
   # (a) data 평문 — 본 파일 자체를 gitignore 하고 직접 채운다.

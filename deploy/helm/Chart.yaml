@@ -2,12 +2,12 @@ apiVersion: v2
 name: mzc-cloudops-v2
 description: CloudOps v2 Umbrella Helm Chart
 type: application
-version: 0.0.10
-appVersion: "0.0.10"
+version: 0.0.11
+appVersion: "0.0.11"
 
 dependencies:
   - name: core
-    version: "0.1.4"
+    version: "0.1.5"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: core.enabled
   - name: plugin-aws-resource-collector
