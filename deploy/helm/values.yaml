@@ -56,3 +56,6 @@ core:
 # override 는 helm install -f values-deploy.yaml 또는 --set 으로 주입.
 plugin-aws-resource-collector:
   enabled: true
+
+plugin-azure-resource-collector:
+  enabled: true
