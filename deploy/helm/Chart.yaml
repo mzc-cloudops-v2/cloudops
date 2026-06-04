@@ -22,3 +22,11 @@ dependencies:
     version: "0.1.2"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: plugin-gcp-resource-collector.enabled
+  - name: plugin-aws-phd-mon-webhook
+    version: "0.0.1"
+    repository: oci://ghcr.io/mzc-cloudops-v2/charts
+    condition: plugin-aws-phd-mon-webhook.enabled
+  - name: plugin-aws-sns-mon-webhook
+    version: "0.0.1"
+    repository: oci://ghcr.io/mzc-cloudops-v2/charts
+    condition: plugin-aws-sns-mon-webhook.enabled
