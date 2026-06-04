@@ -2,6 +2,41 @@ apiVersion: v1
 entries:
   mzc-cloudops-v2:
   - apiVersion: v2
+    appVersion: 0.0.17
+    created: "2026-06-04T04:13:33.421701484Z"
+    dependencies:
+    - condition: core.enabled
+      name: core
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.1.7
+    - condition: plugin-aws-resource-collector.enabled
+      name: plugin-aws-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.1.2
+    - condition: plugin-azure-resource-collector.enabled
+      name: plugin-azure-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.1.2
+    - condition: plugin-gcp-resource-collector.enabled
+      name: plugin-gcp-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.1.2
+    - condition: plugin-aws-phd-mon-webhook.enabled
+      name: plugin-aws-phd-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.0.1
+    - condition: plugin-aws-sns-mon-webhook.enabled
+      name: plugin-aws-sns-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.0.1
+    description: CloudOps v2 Umbrella Helm Chart
+    digest: 7aefba590feceff6401f3d0fa962ac53ff609a3614a300c6751a85632b744016
+    name: mzc-cloudops-v2
+    type: application
+    urls:
+    - https://github.com/mzc-cloudops-v2/cloudops/releases/download/mzc-cloudops-v2-0.0.17/mzc-cloudops-v2-0.0.17.tgz
+    version: 0.0.17
+  - apiVersion: v2
     appVersion: 0.0.16
     created: "2026-05-29T08:16:25.848498931Z"
     dependencies:
@@ -244,4 +279,4 @@ entries:
     urls:
     - https://github.com/mzc-cloudops-v2/cloudops/releases/download/mzc-cloudops-v2-0.0.3/mzc-cloudops-v2-0.0.3.tgz
     version: 0.0.3
-generated: "2026-05-29T08:16:25.848568055Z"
+generated: "2026-06-04T04:13:33.421792402Z"
