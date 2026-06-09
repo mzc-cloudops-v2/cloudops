@@ -30,3 +30,7 @@ dependencies:
     version: "0.0.1"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: plugin-aws-sns-mon-webhook.enabled
+  - name: plugin-email-noti-protocol
+    version: "0.0.1"
+    repository: oci://ghcr.io/mzc-cloudops-v2/charts
+    condition: plugin-email-noti-protocol.enabled
