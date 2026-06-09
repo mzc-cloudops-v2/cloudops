@@ -2,6 +2,45 @@ apiVersion: v1
 entries:
   mzc-cloudops-v2:
   - apiVersion: v2
+    appVersion: 0.0.19
+    created: "2026-06-09T01:54:59.936346686Z"
+    dependencies:
+    - condition: core.enabled
+      name: core
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.1.9
+    - condition: plugin-aws-resource-collector.enabled
+      name: plugin-aws-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.1.2
+    - condition: plugin-azure-resource-collector.enabled
+      name: plugin-azure-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.1.2
+    - condition: plugin-gcp-resource-collector.enabled
+      name: plugin-gcp-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.1.2
+    - condition: plugin-aws-phd-mon-webhook.enabled
+      name: plugin-aws-phd-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.0.1
+    - condition: plugin-aws-sns-mon-webhook.enabled
+      name: plugin-aws-sns-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.0.1
+    - condition: plugin-email-noti-protocol.enabled
+      name: plugin-email-noti-protocol
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.0.1
+    description: CloudOps v2 Umbrella Helm Chart
+    digest: 643dddc97daa376cf916e2eefc26da1bdf2a0969703b68d846cf11f8cd227bc3
+    name: mzc-cloudops-v2
+    type: application
+    urls:
+    - https://github.com/mzc-cloudops-v2/cloudops/releases/download/mzc-cloudops-v2-0.0.19/mzc-cloudops-v2-0.0.19.tgz
+    version: 0.0.19
+  - apiVersion: v2
     appVersion: 0.0.18
     created: "2026-06-05T02:03:13.362838652Z"
     dependencies:
@@ -314,4 +353,4 @@ entries:
     urls:
     - https://github.com/mzc-cloudops-v2/cloudops/releases/download/mzc-cloudops-v2-0.0.3/mzc-cloudops-v2-0.0.3.tgz
     version: 0.0.3
-generated: "2026-06-05T02:03:13.362895068Z"
+generated: "2026-06-09T01:54:59.936431933Z"
