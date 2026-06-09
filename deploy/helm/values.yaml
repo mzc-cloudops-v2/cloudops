@@ -62,3 +62,13 @@ plugin-azure-resource-collector:
 
 plugin-gcp-resource-collector:
   enabled: true
+
+plugin-aws-phd-mon-webhook:
+  enabled: true
+
+plugin-aws-sns-mon-webhook:
+  enabled: true
+
+plugin-email-noti-protocol:
+  enabled: true
+  
