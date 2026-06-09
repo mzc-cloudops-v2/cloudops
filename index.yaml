@@ -2,6 +2,45 @@ apiVersion: v1
 entries:
   mzc-cloudops-v2:
   - apiVersion: v2
+    appVersion: 0.0.20
+    created: "2026-06-09T05:12:33.931467647Z"
+    dependencies:
+    - condition: core.enabled
+      name: core
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.1.9
+    - condition: plugin-aws-resource-collector.enabled
+      name: plugin-aws-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.1.2
+    - condition: plugin-azure-resource-collector.enabled
+      name: plugin-azure-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.1.2
+    - condition: plugin-gcp-resource-collector.enabled
+      name: plugin-gcp-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.1.2
+    - condition: plugin-aws-phd-mon-webhook.enabled
+      name: plugin-aws-phd-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.0.1
+    - condition: plugin-aws-sns-mon-webhook.enabled
+      name: plugin-aws-sns-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.0.1
+    - condition: plugin-email-noti-protocol.enabled
+      name: plugin-email-noti-protocol
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.0.2
+    description: CloudOps v2 Umbrella Helm Chart
+    digest: 258b7d6d7b36ca2fc2d259006bbf38fad149eef28bedc2ef651d5057f3cc1659
+    name: mzc-cloudops-v2
+    type: application
+    urls:
+    - https://github.com/mzc-cloudops-v2/cloudops/releases/download/mzc-cloudops-v2-0.0.20/mzc-cloudops-v2-0.0.20.tgz
+    version: 0.0.20
+  - apiVersion: v2
     appVersion: 0.0.19
     created: "2026-06-09T01:54:59.936346686Z"
     dependencies:
@@ -353,4 +392,4 @@ entries:
     urls:
     - https://github.com/mzc-cloudops-v2/cloudops/releases/download/mzc-cloudops-v2-0.0.3/mzc-cloudops-v2-0.0.3.tgz
     version: 0.0.3
-generated: "2026-06-09T01:54:59.936431933Z"
+generated: "2026-06-09T05:12:33.931609932Z"
