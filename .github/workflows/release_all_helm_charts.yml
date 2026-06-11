@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
     steps:
       - name: Dispatch make_helm_chart to ${{ matrix.service }}
-        uses: peter-evans/repository-dispatch@v3
+        uses: peter-evans/repository-dispatch@v4
         with:
           token: ${{ secrets.PAT_TOKEN }}
           repository: ${{ env.ORG }}/${{ matrix.service }}
@@ -35,11 +35,37 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     steps:
+      # custom_payload 방식 — action-slack 의 fields: 는 GitHub API(actions:read) 를
+      # 요구해 "Resource not accessible by integration" 위험. 직접 payload 는 API
+      # 호출이 없어 권한 문제 없이 동작한다.
       - name: Slack notification
-        uses: 8398a7/action-slack@v3
+        uses: 8398a7/action-slack@v3.19.0
         with:
-          status: ${{ needs.cloudops_chart.result }}
-          fields: repo,message,commit,author,action,eventName,ref,workflow,job,took
-          author_name: CloudOps Release All Charts
+          status: custom
+          custom_payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "${{ needs.cloudops_chart.result == 'success' && '✅ CloudOps Release All Charts Succeeded' || needs.cloudops_chart.result == 'cancelled' && '🟡 CloudOps Release All Charts Cancelled' || '🔴 CloudOps Release All Charts Failed' }}",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    { "type": "mrkdwn", "text": "*📦 Repository*\n`${{ github.repository }}`" },
+                    { "type": "mrkdwn", "text": "*🔀 Ref*\n`${{ github.ref_name }}`" },
+                    { "type": "mrkdwn", "text": "*👤 Author*\n${{ github.actor }}" },
+                    { "type": "mrkdwn", "text": "*📦 Dispatch*\n${{ needs.dispatch_helm_charts.result }}" },
+                    { "type": "mrkdwn", "text": "*🧩 CloudOps Chart*\n${{ needs.cloudops_chart.result }}" },
+                    { "type": "mrkdwn", "text": "*🚀 Workflow*\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>" }
+                  ]
+                },
+                { "type": "divider" }
+              ]
+            }
         env:
           SLACK_WEBHOOK_URL: ${{ vars.SLACK_DEPLOY_HELM_NOTI_WEBHOOK_URL }}

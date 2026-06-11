@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ inputs.branch }}
           # chart-releaser 가 origin/gh-pages 를 참조하려면 모든 ref 가
@@ -34,7 +34,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
         with:
           version: 'v3.14.0'
 
@@ -130,7 +130,7 @@ jobs:
       # 디렉토리에 actions/checkout 으로 받고, cr index 는 `--push` 없이
       # 단순 호출, 그 다음 git push 는 수동으로 처리한다.
       - name: Checkout gh-pages worktree
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: gh-pages
           path: gh-pages
@@ -164,11 +164,37 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     steps:
+      # custom_payload 방식 — action-slack 의 fields: 는 commit/job/took 을 GitHub API
+      # 로 조회해 actions:read 권한을 요구하므로(이 워크플로우 permissions 는
+      # contents:write/packages:read) "Resource not accessible by integration" 위험.
+      # 직접 payload 는 API 호출이 없어 권한 문제 없이 동작한다.
       - name: Slack notification
-        uses: 8398a7/action-slack@v3
+        uses: 8398a7/action-slack@v3.19.0
         with:
-          status: ${{ needs.cloudops_chart.result }}
-          fields: repo,message,commit,author,action,eventName,ref,workflow,job,took
-          author_name: CloudOps Chart Builder
+          status: custom
+          custom_payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "${{ needs.cloudops_chart.result == 'success' && '✅ CloudOps Chart Published' || needs.cloudops_chart.result == 'cancelled' && '🟡 CloudOps Chart Cancelled' || '🔴 CloudOps Chart Failed' }}",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    { "type": "mrkdwn", "text": "*📦 Repository*\n`${{ github.repository }}`" },
+                    { "type": "mrkdwn", "text": "*🔀 Ref*\n`${{ github.ref_name }}`" },
+                    { "type": "mrkdwn", "text": "*👤 Author*\n${{ github.actor }}" },
+                    { "type": "mrkdwn", "text": "*📊 Result*\n${{ needs.cloudops_chart.result }}" },
+                    { "type": "mrkdwn", "text": "*🚀 Workflow*\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>" }
+                  ]
+                },
+                { "type": "divider" }
+              ]
+            }
         env:
           SLACK_WEBHOOK_URL: ${{ vars.SLACK_DEPLOY_HELM_NOTI_WEBHOOK_URL }}
