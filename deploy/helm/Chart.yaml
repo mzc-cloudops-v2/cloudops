@@ -41,4 +41,4 @@ dependencies:
   - name: plugin-prometheus-mon-webhook
     version: "0.0.2"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
-    condition: plugin-grafana-mon-webhook.enabled
+    condition: plugin-prometheus-mon-webhook.enabled
