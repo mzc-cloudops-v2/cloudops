@@ -2,43 +2,43 @@ apiVersion: v2
 name: mzc-cloudops-v2
 description: CloudOps v2 Umbrella Helm Chart
 type: application
-version: 1.0.3
-appVersion: "1.0.3"
+version: 1.0.4
+appVersion: "1.0.4"
 
 dependencies:
   - name: core
-    version: "1.0.1"
+    version: "1.0.2"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: core.enabled
   - name: plugin-aws-resource-collector
-    version: "1.0.0"
+    version: "1.0.1"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: plugin-aws-resource-collector.enabled
   - name: plugin-azure-resource-collector
-    version: "1.0.0"
+    version: "1.0.1"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: plugin-azure-resource-collector.enabled
   - name: plugin-gcp-resource-collector
-    version: "1.0.0"
+    version: "1.0.1"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: plugin-gcp-resource-collector.enabled
   - name: plugin-aws-phd-mon-webhook
-    version: "1.0.0"
+    version: "1.0.1"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: plugin-aws-phd-mon-webhook.enabled
   - name: plugin-aws-sns-mon-webhook
-    version: "1.0.0"
+    version: "1.0.1"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: plugin-aws-sns-mon-webhook.enabled
   - name: plugin-email-noti-protocol
-    version: "1.0.0"
+    version: "1.0.1"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: plugin-email-noti-protocol.enabled
   - name: plugin-grafana-mon-webhook
-    version: "0.0.1"
+    version: "0.0.2"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: plugin-grafana-mon-webhook.enabled
   - name: plugin-prometheus-mon-webhook
-    version: "0.0.1"
+    version: "0.0.2"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: plugin-grafana-mon-webhook.enabled
