@@ -2,6 +2,53 @@ apiVersion: v1
 entries:
   mzc-cloudops-v2:
   - apiVersion: v2
+    appVersion: 1.0.3
+    created: "2026-06-23T01:53:47.198459883Z"
+    dependencies:
+    - condition: core.enabled
+      name: core
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 1.0.1
+    - condition: plugin-aws-resource-collector.enabled
+      name: plugin-aws-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 1.0.0
+    - condition: plugin-azure-resource-collector.enabled
+      name: plugin-azure-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 1.0.0
+    - condition: plugin-gcp-resource-collector.enabled
+      name: plugin-gcp-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 1.0.0
+    - condition: plugin-aws-phd-mon-webhook.enabled
+      name: plugin-aws-phd-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 1.0.0
+    - condition: plugin-aws-sns-mon-webhook.enabled
+      name: plugin-aws-sns-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 1.0.0
+    - condition: plugin-email-noti-protocol.enabled
+      name: plugin-email-noti-protocol
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 1.0.0
+    - condition: plugin-grafana-mon-webhook.enabled
+      name: plugin-grafana-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.0.1
+    - condition: plugin-grafana-mon-webhook.enabled
+      name: plugin-prometheus-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.0.1
+    description: CloudOps v2 Umbrella Helm Chart
+    digest: fbaefe0ee910630c34fde2b703c61c99548f8e54395fa03303a651cffbd913c3
+    name: mzc-cloudops-v2
+    type: application
+    urls:
+    - https://github.com/mzc-cloudops-v2/cloudops/releases/download/mzc-cloudops-v2-1.0.3/mzc-cloudops-v2-1.0.3.tgz
+    version: 1.0.3
+  - apiVersion: v2
     appVersion: 1.0.2
     created: "2026-06-23T01:33:09.991127437Z"
     dependencies:
@@ -513,4 +560,4 @@ entries:
     urls:
     - https://github.com/mzc-cloudops-v2/cloudops/releases/download/mzc-cloudops-v2-0.0.3/mzc-cloudops-v2-0.0.3.tgz
     version: 0.0.3
-generated: "2026-06-23T01:33:09.991255077Z"
+generated: "2026-06-23T01:53:47.198572824Z"
