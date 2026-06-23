@@ -34,3 +34,7 @@ dependencies:
     version: "1.0.0"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: plugin-email-noti-protocol.enabled
+  - name: plugin-grafana-mon-webhook
+    version: "0.0.1"
+    repository: oci://ghcr.io/mzc-cloudops-v2/charts
+    condition: plugin-grafana-mon-webhook.enabled
