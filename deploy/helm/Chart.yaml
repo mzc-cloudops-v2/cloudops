@@ -2,8 +2,8 @@ apiVersion: v2
 name: mzc-cloudops-v2
 description: CloudOps v2 Umbrella Helm Chart
 type: application
-version: 1.0.2
-appVersion: "1.0.2"
+version: 1.0.3
+appVersion: "1.0.3"
 
 dependencies:
   - name: core
@@ -35,6 +35,10 @@ dependencies:
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: plugin-email-noti-protocol.enabled
   - name: plugin-grafana-mon-webhook
+    version: "0.0.1"
+    repository: oci://ghcr.io/mzc-cloudops-v2/charts
+    condition: plugin-grafana-mon-webhook.enabled
+  - name: plugin-prometheus-mon-webhook
     version: "0.0.1"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: plugin-grafana-mon-webhook.enabled
