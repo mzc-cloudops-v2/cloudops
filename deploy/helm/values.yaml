@@ -71,4 +71,9 @@ plugin-aws-sns-mon-webhook:
 
 plugin-email-noti-protocol:
   enabled: true
-  
+
+plugin-prometheus-mon-webhook:
+  enabled: true
+
+plugin-grafana-mon-webhook:
+  enabled: true
