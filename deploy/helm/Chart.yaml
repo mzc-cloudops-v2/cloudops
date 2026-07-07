@@ -42,3 +42,7 @@ dependencies:
     version: "0.0.2"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: plugin-prometheus-mon-webhook.enabled
+  - name: plugin-aws-cloudwatch-mon-webhook
+    version: "0.0.1"
+    repository: oci://ghcr.io/mzc-cloudops-v2/charts
+    condition: plugin-aws-cloudwatch-mon-webhook.enabled
