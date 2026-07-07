@@ -67,7 +67,7 @@ plugin-aws-phd-mon-webhook:
   enabled: true
 
 plugin-aws-sns-mon-webhook:
-  enabled: true
+  enabled: false
 
 plugin-email-noti-protocol:
   enabled: true
@@ -76,4 +76,7 @@ plugin-prometheus-mon-webhook:
   enabled: true
 
 plugin-grafana-mon-webhook:
+  enabled: true
+
+plugin-aws-cloudwatch-mon-webhook:
   enabled: true
