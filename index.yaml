@@ -2,6 +2,57 @@ apiVersion: v1
 entries:
   mzc-cloudops-v2:
   - apiVersion: v2
+    appVersion: 1.1.1
+    created: "2026-07-08T01:31:20.357341908Z"
+    dependencies:
+    - condition: core.enabled
+      name: core
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 1.0.3
+    - condition: plugin-aws-resource-collector.enabled
+      name: plugin-aws-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 1.0.1
+    - condition: plugin-azure-resource-collector.enabled
+      name: plugin-azure-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 1.0.1
+    - condition: plugin-gcp-resource-collector.enabled
+      name: plugin-gcp-resource-collector
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 1.0.1
+    - condition: plugin-aws-phd-mon-webhook.enabled
+      name: plugin-aws-phd-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 1.0.1
+    - condition: plugin-aws-sns-mon-webhook.enabled
+      name: plugin-aws-sns-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 1.0.1
+    - condition: plugin-email-noti-protocol.enabled
+      name: plugin-email-noti-protocol
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 1.0.1
+    - condition: plugin-grafana-mon-webhook.enabled
+      name: plugin-grafana-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.0.2
+    - condition: plugin-prometheus-mon-webhook.enabled
+      name: plugin-prometheus-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.0.2
+    - condition: plugin-aws-cloudwatch-mon-webhook.enabled
+      name: plugin-aws-cloudwatch-mon-webhook
+      repository: oci://ghcr.io/mzc-cloudops-v2/charts
+      version: 0.0.1
+    description: CloudOps v2 Umbrella Helm Chart
+    digest: 8614e4c49af8cfd65d96e20b09bb8afca951c61dfa43cb2b6fe2f704afa64b76
+    name: mzc-cloudops-v2
+    type: application
+    urls:
+    - https://github.com/mzc-cloudops-v2/cloudops/releases/download/mzc-cloudops-v2-1.1.1/mzc-cloudops-v2-1.1.1.tgz
+    version: 1.1.1
+  - apiVersion: v2
     appVersion: 1.1.0
     created: "2026-06-30T09:43:44.849603099Z"
     dependencies:
@@ -701,4 +752,4 @@ entries:
     urls:
     - https://github.com/mzc-cloudops-v2/cloudops/releases/download/mzc-cloudops-v2-0.0.3/mzc-cloudops-v2-0.0.3.tgz
     version: 0.0.3
-generated: "2026-06-30T09:43:44.849767005Z"
+generated: "2026-07-08T01:31:20.35751177Z"
