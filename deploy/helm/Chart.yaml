@@ -7,7 +7,7 @@ appVersion: "1.1.5"
 
 dependencies:
   - name: core
-    version: "1.0.5"
+    version: "1.0.6"
     repository: oci://ghcr.io/mzc-cloudops-v2/charts
     condition: core.enabled
   - name: plugin-aws-resource-collector
