@@ -55,6 +55,16 @@ core:
   # 활성화가 필요하면 환경별 values 에서 `core.migration.enabled: true` 로 override.
   migration:
     enabled: false
+  # Temporal claim-check codec — 대용량 collect payload 를 SeaweedFS(S3)로 offload.
+  # 비민감값(enable/endpoint/bucket/region)만 여기서. endpoint 는 seaweedfs 서비스
+  # (global.namespace 와 일치해야 함). ACCESS/SECRET KEY 는 SM(SDK-fetch)에서 읽으므로
+  # SECRETS_MANAGER_NAME 의 secret 에 TEMPORAL_CLAIMCHECK_ACCESS_KEY / _SECRET_KEY 가
+  # 있어야 하며, 그 값이 seaweedfs identity 와 동일해야 한다.
+  env: &claimcheckEnv
+    TEMPORAL_CLAIMCHECK_ENABLED: "true"
+    TEMPORAL_CLAIMCHECK_ENDPOINT_URL: "http://seaweedfs.cloudopsv2:8333"
+    TEMPORAL_CLAIMCHECK_BUCKET: "cloudops-claimcheck"
+    TEMPORAL_CLAIMCHECK_REGION: "us-east-1"
 
 # ── plugin: AWS resource collector ────────────────────────────────────────
 # umbrella 는 enable/disable 만. namespace 는 global.namespace 로부터 helper 가
@@ -62,12 +72,16 @@ core:
 # override 는 helm install -f values-deploy.yaml 또는 --set 으로 주입.
 plugin-aws-resource-collector:
   enabled: true
+  # collect_resources 가 반환하는 대용량 payload 를 offload — core 와 동일 codec 설정.
+  env: *claimcheckEnv
 
 plugin-azure-resource-collector:
   enabled: true
+  env: *claimcheckEnv
 
 plugin-gcp-resource-collector:
   enabled: true
+  env: *claimcheckEnv
 
 plugin-aws-phd-mon-webhook:
   enabled: true
