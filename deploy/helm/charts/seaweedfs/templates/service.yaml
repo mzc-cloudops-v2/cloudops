@@ -1,0 +1,19 @@
+{{- if .Values.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: seaweedfs
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+{{ include "cloudops.labels" . | indent 4 }}
+    cloudops.service: seaweedfs
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - { name: s3, port: {{ .Values.s3.port }}, targetPort: {{ .Values.s3.port }}, protocol: TCP }
+    - { name: filer, port: {{ .Values.filer.port }}, targetPort: {{ .Values.filer.port }}, protocol: TCP }
+    - { name: master, port: {{ .Values.master.port }}, targetPort: {{ .Values.master.port }}, protocol: TCP }
+  selector:
+    cloudops.service: seaweedfs
+  sessionAffinity: None
+{{- end }}
