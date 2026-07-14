@@ -38,6 +38,12 @@ redis:
 nats:
   enabled: true
 
+# SeaweedFS (all-in-one) — Temporal claim-check object storage.
+# 서비스명 `seaweedfs` 가 곧 S3 엔드포인트 (seaweedfs.<ns>:8333). 인증(s3.config)의
+# 실제 accessKey/secretKey 는 values-deploy(gitignore) 또는 ESO existingSecret 으로 주입.
+seaweedfs:
+  enabled: true
+
 # ── core (monolith) ────────────────────────────────────────────────────────
 # core chart 의 values.yaml 이 cloudopsv2 namespace 기준의 안전한 default 를
 # 모두 들고 있다. umbrella 는 dependency on/off 만 결정하고, 매 배포마다

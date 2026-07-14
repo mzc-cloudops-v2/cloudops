@@ -1,0 +1,50 @@
+enabled: true
+
+image:
+  repository: chrislusf/seaweedfs
+  tag: "3.80"           # 실제 가용 버전으로 pin
+  pullPolicy: IfNotPresent
+
+# 노드 배치 (클러스터 컨벤션: category=core/plugin). 전 노드가 라벨뿐이면 필요.
+nodeSelector:
+  category: core
+
+resources: {}
+
+# 데이터 디렉토리 (PVC 마운트 지점)
+dataDir: /data
+
+# S3 게이트웨이 (claim-check 소비 지점)
+s3:
+  port: 8333
+  auth:
+    # 인증 config(s3.config)의 출처.
+    #  - existingSecret 지정: 그 K8s Secret(예: ESO 가 만든 것)을 마운트 (권장, 평문 X)
+    #  - 비어있음: 아래 identities 로 chart 가 Secret 을 생성 (dev — secretKey 가 values 평문이라 운영 비권장)
+    existingSecret: ""
+    configKey: s3.config          # Secret 안의 key = /etc/seaweedfs/<configKey> 파일명
+    identities:
+      - name: claimcheck
+        accessKey: cloudops-claimcheck
+        secretKey: "REPLACE_WITH_RANDOM_SECRET_KEY"   # dev; 운영은 ESO 로 (values 에 실 secret 두지 말 것)
+        actions: [Read, Write, List]
+
+# 내부 컴포넌트 (올인원 weed server)
+master:
+  port: 9333
+volume:
+  port: 8080
+  maxVolumes: 100
+  sizeLimitMB: 1024
+filer:
+  port: 8888
+
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClass: ""       # 비우면 클러스터 기본 StorageClass
+
+service:
+  type: ClusterIP
+
+gracePeriod: 30

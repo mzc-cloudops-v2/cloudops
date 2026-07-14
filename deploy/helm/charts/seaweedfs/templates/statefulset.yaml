@@ -1,0 +1,85 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: seaweedfs
+  namespace: {{ .Values.global.namespace | default .Release.Namespace }}
+  labels:
+{{ include "cloudops.labels" . | indent 4 }}
+    cloudops.service: seaweedfs
+spec:
+  serviceName: seaweedfs
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      cloudops.service: seaweedfs
+  template:
+    metadata:
+      annotations:
+        cloudops.deployment.tool: helm
+      labels:
+{{ include "cloudops.labels" . | indent 8 }}
+        cloudops.service: seaweedfs
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.gracePeriod | default 30 }}
+      containers:
+        - name: seaweedfs
+          image: "{{ .Values.image.repository }}{{- if .Values.image.tag }}:{{ .Values.image.tag }}{{- end }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # 올인원: master + volume + filer + s3 게이트웨이 한 프로세스
+          command:
+            - weed
+            - server
+            - -dir={{ .Values.dataDir }}
+            - -master.volumeSizeLimitMB={{ .Values.volume.sizeLimitMB }}
+            - -volume.max={{ .Values.volume.maxVolumes }}
+            - -filer
+            - -s3
+            - -s3.port={{ .Values.s3.port }}
+            - -s3.config=/etc/seaweedfs/{{ .Values.s3.auth.configKey }}
+          ports:
+            - { name: s3, containerPort: {{ .Values.s3.port }}, protocol: TCP }
+            - { name: master, containerPort: {{ .Values.master.port }}, protocol: TCP }
+            - { name: volume, containerPort: {{ .Values.volume.port }}, protocol: TCP }
+            - { name: filer, containerPort: {{ .Values.filer.port }}, protocol: TCP }
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.s3.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.s3.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.dataDir }}
+            - name: s3-config
+              mountPath: /etc/seaweedfs
+              readOnly: true
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: s3-config
+          secret:
+            secretName: {{ include "seaweedfs.s3SecretName" . }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ .Values.persistence.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}
+{{- end }}

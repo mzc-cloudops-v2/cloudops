@@ -127,3 +127,27 @@ core:
   #     existingSecret 이 비어있지 않으면 chart 는 자체 Secret 을 만들지 않는다.
   # secret:
   #   existingSecret: cloudops-core-secret
+
+# ── SeaweedFS (Temporal claim-check object storage) ───────────────────────────
+# 서비스명 `seaweedfs` 가 곧 S3 엔드포인트 (seaweedfs.<ns>:8333) — 소비자 env 불필요.
+# umbrella values.yaml 에서 enabled:true. 환경별로 채워야 하는 값만 아래에 override.
+seaweedfs:
+  # image:
+  #   tag: "<SEAWEEDFS_TAG>"        # 필요 시 이미지 버전 override
+  # persistence:
+  #   size: 10Gi                     # 데이터 볼륨 크기
+
+  s3:
+    auth:
+      # (a) dev — chart 가 s3.config Secret 을 생성. 실 secretKey 는 여기(gitignore)에만.
+      identities:
+        - name: claimcheck
+          accessKey: cloudops-claimcheck
+          secretKey: "<SEAWEEDFS_SECRET_KEY>"    # openssl rand -base64 32
+          actions: [Read, Write, List]
+      # (b) prod/인증 — ESO 가 만든 Secret 참조. 지정 시 위 identities 무시(Secret 미생성).
+      # existingSecret: seaweedfs-s3-secret
+
+# 참고: claim-check 소비자(core/plugin temporal 워커)는 위와 동일한
+# accessKey/secretKey 를 S3 클라이언트 자격증명으로 필요로 한다 (SDK-direct 로
+# cloudops/dev/secrets/app 또는 core.secret.data 에 주입 — base codec 설정명에 맞춰).

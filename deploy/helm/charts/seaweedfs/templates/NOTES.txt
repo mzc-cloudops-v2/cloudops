@@ -1,0 +1,17 @@
+SeaweedFS (all-in-one) — Temporal claim-check object storage
+
+  S3 endpoint (cluster-internal):
+    http://seaweedfs.{{ .Values.global.namespace | default .Release.Namespace }}:{{ .Values.s3.port }}
+
+  Auth (s3.config) source:
+{{- if .Values.s3.auth.existingSecret }}
+    existingSecret: {{ .Values.s3.auth.existingSecret }}  (external / ESO)
+{{- else }}
+    chart-created Secret: seaweedfs-s3-config  (dev — move to ESO existingSecret for prod)
+{{- end }}
+
+  Consumers (core / plugin temporal workers via base claim-check codec) need the same
+  accessKey / secretKey as S3 client credentials, delivered via SDK-direct
+  (SECRETS_MANAGER_NAME=cloudops/dev/secrets/app → SEAWEEDFS_ACCESS_KEY / SEAWEEDFS_SECRET_KEY).
+
+  Data persists on a {{ .Values.persistence.size }} PVC (survives pod restart).
