@@ -19,9 +19,11 @@ s3:
   port: 8333
   auth:
     # 인증 config(s3.config)의 출처.
-    #  - existingSecret 지정: 그 K8s Secret(예: ESO 가 만든 것)을 마운트 (권장, 평문 X)
+    #  - existingSecret 지정: 그 K8s Secret(ESO 가 SM→만든 것)을 마운트 (권장, 평문 X)
     #  - 비어있음: 아래 identities 로 chart 가 Secret 을 생성 (dev — secretKey 가 values 평문이라 운영 비권장)
-    existingSecret: ""
+    # ESO(deploy/eso/manifests/eso.yaml)가 SM 의 claim-check 키로 이 Secret 을 만든다.
+    # SeaweedFS 와 반드시 같은 네임스페이스(global.namespace)에 있어야 마운트된다.
+    existingSecret: "seaweedfs-s3-secret"
     configKey: s3.config          # Secret 안의 key = /etc/seaweedfs/<configKey> 파일명
     identities:
       - name: claimcheck
