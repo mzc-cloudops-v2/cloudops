@@ -1,0 +1,179 @@
+{{- /*
+values.plugins 를 순회하며 플러그인마다 env ConfigMap + ServiceAccount +
+main Deployment(NATS 워커) + optional temporal-worker 를 렌더한다.
+pluginDefaults 를 각 플러그인에 merge(플러그인 우선). 모든 플러그인은 NATS 워커라
+Service/Ingress 없음. 렌더 결과가 기존 per-plugin subchart 와 기능적으로 동일.
+*/ -}}
+{{- $root := . -}}
+{{- range $name, $praw := .Values.plugins }}
+{{- $p := mergeOverwrite (deepCopy (default (dict) $root.Values.pluginDefaults)) ($praw | default (dict)) }}
+{{- if $p.enabled }}
+{{- $ctx := dict "name" $name "plugin" $p "root" $root }}
+{{- $fullname := include "plugins.fullname" $ctx }}
+{{- $ns := include "plugins.namespace" $ctx }}
+{{- $checksum := $p | toYaml | sha256sum }}
+{{- $imgRepo := dig "image" "repository" "" $p }}
+{{- $imgTag := dig "image" "tag" "latest" $p }}
+{{- $imgPull := dig "image" "pullPolicy" "IfNotPresent" $p }}
+{{- /* ── env ConfigMap ─────────────────────────────────────────── */}}
+{{- if $p.env }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-env
+  namespace: {{ $ns }}
+  labels:
+{{ include "plugins.labels" $ctx | indent 4 }}
+data:
+  NATS_URL: {{ printf "nats://%s" (include "plugins.natsHost" $ctx) | quote }}
+  {{- if dig "temporal" "enabled" false $p }}
+  TEMPORAL_ADDRESS: {{ include "plugins.temporalAddress" $ctx | quote }}
+  {{- end }}
+  {{- if and $root.Values.global $root.Values.global.secretsManagerName }}
+  SECRETS_MANAGER_NAME: {{ $root.Values.global.secretsManagerName | quote }}
+  {{- end }}
+  {{- if and $root.Values.global $root.Values.global.secretsManagerRegion }}
+  SECRETS_MANAGER_REGION: {{ $root.Values.global.secretsManagerRegion | quote }}
+  {{- end }}
+  {{- range $k, $v := $p.env }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}
+---
+{{- end }}
+{{- /* ── ServiceAccount (IRSA) — serviceAccount.create 일 때만 ──── */}}
+{{- if dig "serviceAccount" "create" true $p }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "plugins.serviceAccountName" $ctx }}
+  namespace: {{ $ns }}
+  labels:
+{{ include "plugins.labels" $ctx | indent 4 }}
+  {{- $roleArn := "" }}
+  {{- if and $root.Values.global $root.Values.global.serviceAccount $root.Values.global.serviceAccount.roleArn }}{{ $roleArn = $root.Values.global.serviceAccount.roleArn }}
+  {{- else if and $root.Values.global $root.Values.global.pluginRoleArn }}{{ $roleArn = $root.Values.global.pluginRoleArn }}{{ end }}
+  {{- $saAnn := dig "serviceAccount" "annotations" (dict) $p }}
+  {{- if or $roleArn $saAnn }}
+  annotations:
+    {{- if $roleArn }}
+    eks.amazonaws.com/role-arn: {{ $roleArn | quote }}
+    {{- end }}
+    {{- with $saAnn }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+---
+{{- end }}
+{{- /* ── main Deployment (NATS 컨슈머) — natsConsumer.enabled 기본 true ── */}}
+{{- if dig "natsConsumer" "enabled" true $p }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ $ns }}
+  labels:
+{{ include "plugins.labels" $ctx | indent 4 }}
+spec:
+  replicas: {{ dig "replicas" 1 $p }}
+  selector:
+    matchLabels:
+{{ include "plugins.selectorLabels" $ctx | indent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ $checksum }}
+      labels:
+{{ include "plugins.selectorLabels" $ctx | indent 8 }}
+    spec:
+      serviceAccountName: {{ include "plugins.serviceAccountName" $ctx }}
+      {{- with $p.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $fullname }}
+          image: "{{ $imgRepo }}:{{ $imgTag }}"
+          imagePullPolicy: {{ $imgPull }}
+          {{- $envFrom := include "plugins.envFrom" $ctx | trim }}
+          {{- if $envFrom }}
+          envFrom:
+{{ $envFrom | indent 12 }}
+          {{- end }}
+          {{- with $p.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with $p.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $p.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $p.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+{{- end }}
+{{- /* ── temporal-worker Deployment — temporalWorker.enabled 기본 false ── */}}
+{{- if dig "temporalWorker" "enabled" false $p }}
+{{- $tw := $p.temporalWorker }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-temporal-worker
+  namespace: {{ $ns }}
+  labels:
+{{ include "plugins.labels" $ctx | indent 4 }}
+    app.kubernetes.io/component: temporal-worker
+spec:
+  replicas: {{ dig "replicas" 1 $tw }}
+  selector:
+    matchLabels:
+{{ include "plugins.selectorLabels" $ctx | indent 6 }}
+      app.kubernetes.io/component: temporal-worker
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ $checksum }}
+      labels:
+{{ include "plugins.selectorLabels" $ctx | indent 8 }}
+        app.kubernetes.io/component: temporal-worker
+    spec:
+      serviceAccountName: {{ include "plugins.serviceAccountName" $ctx }}
+      {{- with $p.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $fullname }}-temporal-worker
+          image: "{{ $imgRepo }}:{{ $imgTag }}"
+          imagePullPolicy: {{ $imgPull }}
+          command: ["python", "-m", "plugin.temporal_worker"]
+          {{- $envFrom := include "plugins.envFrom" $ctx | trim }}
+          {{- if $envFrom }}
+          envFrom:
+{{ $envFrom | indent 12 }}
+          {{- end }}
+          {{- with $tw.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with $tw.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $tw.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $tw.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+{{- end }}
+{{- end }}{{- /* if $p.enabled */}}
+{{- end }}{{- /* range */}}

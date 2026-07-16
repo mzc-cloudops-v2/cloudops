@@ -1,0 +1,17 @@
+{{- if and .Values.enabled .Values.conf }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "core.fullname" . }}-conf
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "core.labels" . | indent 4 }}
+  annotations:
+    # migration Job (pre-install hook, weight=-1) 가 shared.yaml 을 volumeMount
+    # 로 받으므로 hook 으로 만들고 weight 를 더 작게 둔다.
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+data:
+  shared.yaml: |
+{{ toYaml .Values.conf | indent 4 }}
+{{- end }}

@@ -1,0 +1,83 @@
+{{- if and .Values.enabled .Values.temporalWorker.enabled }}
+# ==============================================================================
+# Temporal collect worker deployment (별 pod)
+#
+# main core deployment 와 같은 image 를 쓰되, entrypoint 를 Temporal 워커로 override
+# 한다 (FastAPI serve() 대신 ``python -m cloudops.core.worker``). collect
+# 워크플로우/활동(ResourceCollection / ResourceCollectionRun + upsert_resources /
+# build_tasks_from_plan / list_active_accounts)을 task_queue ``core-collect`` 에서
+# 실행한다. COLLECT_ENGINE=temporal 일 때 core-scheduler 가 시작한 워크플로우를
+# 이 워커가 처리한다 (엔진=nats 면 이 pod 를 안 띄우면 됨: temporalWorker.enabled=false).
+#
+# scheduler deployment 와의 차이:
+#   * command override — 이미지 default CMD(serve) 가 아니라 워커 모듈 실행
+#   * Service / Ingress / HPA / PDB / probe 미적용 — HTTP 를 받지 않는 폴링 루프
+#   * SCHEDULER_* / SERVER_WORKERS env 없음 (serve 경로 전용)
+# TEMPORAL_ADDRESS / TEMPORAL_NAMESPACE 는 main 과 동일한 공용 envFrom(ConfigMap)
+# 에서 주입되므로 여기서 별도 지정하지 않는다. base ``create_temporal_client`` 가
+# TEMPORAL_* 를 읽는다. TEMPORAL_ENCRYPTION_KEY 및 DB password 등 민감값은
+# SDK-direct(SECRETS_MANAGER_NAME) 로 base settings 가 Secrets Manager 에서 읽는다.
+# ==============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "core.temporalWorkerName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "core.temporalWorkerLabels" . | indent 4 }}
+spec:
+  replicas: {{ .Values.temporalWorker.replicas | default 1 }}
+  selector:
+    matchLabels:
+{{ include "core.temporalWorkerSelectorLabels" . | indent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/env: {{ include (print $.Template.BasePath "/env.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/conf: {{ include (print $.Template.BasePath "/conf.yaml") . | sha256sum }}
+      labels:
+{{ include "core.temporalWorkerSelectorLabels" . | indent 8 }}
+    spec:
+      serviceAccountName: {{ include "core.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      containers:
+        - name: core-temporal-worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-m", "cloudops.core.worker"]
+          {{- $envFrom := include "core.envFrom" . | trim }}
+          {{- if $envFrom }}
+          envFrom:
+{{ $envFrom | indent 12 }}
+          {{- end }}
+          {{- $mounts := include "core.confVolumeMount" . | trim }}
+          {{- if $mounts }}
+          volumeMounts:
+{{ $mounts | indent 12 }}
+          {{- end }}
+{{- if .Values.temporalWorker.resources }}
+          resources:
+{{ toYaml .Values.temporalWorker.resources | indent 12 }}
+{{- end }}
+      {{- $volumes := include "core.confVolume" . | trim }}
+      {{- if $volumes }}
+      volumes:
+{{ $volumes | indent 8 }}
+      {{- end }}
+      {{- with .Values.temporalWorker.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.temporalWorker.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.temporalWorker.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+{{- end }}

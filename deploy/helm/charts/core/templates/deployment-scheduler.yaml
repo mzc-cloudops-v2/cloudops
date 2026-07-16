@@ -1,0 +1,96 @@
+{{- if and .Values.enabled .Values.scheduler.enabled }}
+# ==============================================================================
+# Cron scheduler deployment
+#
+# main core deployment (REST/NATS handler, ``replicas: {{ .Values.replicas }}``) 과 같은
+# image / 같은 env 로 별도 pod 를 띄운다. 차이점은:
+#   * ``replicas: 1`` 강제 — 분산 환경에서 cron 중복 발화 차단 (leader 선출 없음)
+#   * ``SCHEDULER_ENABLED=true`` env override — base.scheduler 의 ``create_scheduler``
+#     가 ``Scheduler`` 인스턴스를 만들도록 활성화
+#   * ``SCHEDULER_PATHS`` env — 도메인 cron 모듈 dotted-path 목록 (JSON list)
+#   * Service / Ingress / HPA / PDB 미적용 — 외부 트래픽 처리 안 함
+#
+# 동일 image 안의 ``main.py`` 가 같은 lifespan 을 갖고, lifespan 내부에서
+# ``SCHEDULER_ENABLED`` 분기로 scheduler bootstrap 만 수행한다 (FastAPI server 는
+# 같이 떠있지만 외부에서 도달할 service 가 없어 사실상 idle).
+# ==============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "core.schedulerName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "core.schedulerLabels" . | indent 4 }}
+spec:
+  replicas: {{ .Values.scheduler.replicas | default 1 }}
+  selector:
+    matchLabels:
+{{ include "core.schedulerSelectorLabels" . | indent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/env: {{ include (print $.Template.BasePath "/env.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/conf: {{ include (print $.Template.BasePath "/conf.yaml") . | sha256sum }}
+      labels:
+{{ include "core.schedulerSelectorLabels" . | indent 8 }}
+    spec:
+      serviceAccountName: {{ include "core.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      containers:
+        - name: core-scheduler
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- $envFrom := include "core.envFrom" . | trim }}
+          {{- if $envFrom }}
+          envFrom:
+{{ $envFrom | indent 12 }}
+          {{- end }}
+          env:
+            # cron 단일 발화 보장 — scheduler 는 API 와 같은 serve() 진입점이라
+            # 워커가 늘면 워커마다 lifespan 이 돌아 cron 이 중복 발화한다. 공용
+            # env 에 SERVER_WORKERS 가 끼더라도 컨테이너 env(우선순위 높음) 의
+            # 리터럴 1 로 항상 덮어 단일 프로세스를 강제한다 (values 참조 안 함).
+            - name: SERVER_WORKERS
+              value: "1"
+            - name: SCHEDULER_ENABLED
+              value: "true"
+            - name: SCHEDULER_PATHS
+              value: {{ .Values.scheduler.paths | default list | toJson | quote }}
+            # Per-job override (TPM-130) — name 키 기반 dict. base 의
+            # ``CloudOpsBaseSettings.scheduler_jobs: dict[str, ScheduledJobOverride]``
+            # 가 JSON dict 로 파싱한다. 빈 dict 면 모든 job 이 코드 default 로 동작.
+            # 작성 모양/필드는 umbrella ``values-deploy.example.yaml`` 의
+            # ``core.scheduler.jobs`` 섹션을 참조.
+            - name: SCHEDULER_JOBS
+              value: {{ .Values.scheduler.jobs | default dict | toJson | quote }}
+          {{- $mounts := include "core.confVolumeMount" . | trim }}
+          {{- if $mounts }}
+          volumeMounts:
+{{ $mounts | indent 12 }}
+          {{- end }}
+{{- if .Values.scheduler.resources }}
+          resources:
+{{ toYaml .Values.scheduler.resources | indent 12 }}
+{{- end }}
+      {{- $volumes := include "core.confVolume" . | trim }}
+      {{- if $volumes }}
+      volumes:
+{{ $volumes | indent 8 }}
+      {{- end }}
+      {{- with .Values.scheduler.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.scheduler.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.scheduler.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+{{- end }}

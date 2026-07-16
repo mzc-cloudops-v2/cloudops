@@ -1,0 +1,18 @@
+# Patterns to ignore when packaging this chart.
+# https://helm.sh/docs/topics/charts/#the-helmignore-file
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.tmp
+*.bak
+
+# Helm-specific
+.git/
+.gitignore
+
+# Sensitive value files — 절대 chart 패키지에 포함되지 않게 한다.
+# values-secret.example.yaml 만 커밋되며 본 글롭에 매치되지 않는다 (suffix 차이).
+values-secret.yaml

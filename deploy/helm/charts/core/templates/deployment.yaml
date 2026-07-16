@@ -1,0 +1,103 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "core.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "core.labels" . | indent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+{{ include "core.selectorLabels" . | indent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/env: {{ include (print $.Template.BasePath "/env.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/conf: {{ include (print $.Template.BasePath "/conf.yaml") . | sha256sum }}
+      labels:
+{{ include "core.selectorLabels" . | indent 8 }}
+    spec:
+      serviceAccountName: {{ include "core.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      containers:
+        - name: core
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.containerPort }}
+              protocol: TCP
+          {{- $envFrom := include "core.envFrom" . | trim }}
+          {{- if $envFrom }}
+          envFrom:
+{{ $envFrom | indent 12 }}
+          {{- end }}
+          # uvicorn 워커 수는 공용 envFrom ConfigMap 이 아니라 API 컨테이너 전용
+          # env 로만 주입한다 (scheduler pod 로 새지 않게). 컨테이너 env 가
+          # envFrom 보다 우선하므로 공용 ConfigMap 에 SERVER_WORKERS 가 끼어도 덮인다.
+          env:
+            - name: SERVER_WORKERS
+              value: {{ .Values.serverWorkers | quote }}
+          {{- $mounts := include "core.confVolumeMount" . | trim }}
+          {{- if $mounts }}
+          volumeMounts:
+{{ $mounts | indent 12 }}
+          {{- end }}
+{{- if .Values.resources }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+{{- end }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probe.path }}
+              port: http
+            periodSeconds: {{ .Values.probe.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probe.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probe.startup.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probe.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probe.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probe.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probe.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probe.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probe.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probe.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probe.liveness.failureThreshold }}
+      {{- $volumes := include "core.confVolume" . | trim }}
+      {{- if $volumes }}
+      volumes:
+{{ $volumes | indent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+{{- if .Values.pod }}
+{{- if .Values.pod.spec }}
+{{ toYaml .Values.pod.spec | indent 6 }}
+{{- end }}
+{{- end }}
+{{- end }}

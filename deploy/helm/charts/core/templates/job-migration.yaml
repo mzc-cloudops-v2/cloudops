@@ -1,0 +1,73 @@
+{{- if and .Values.enabled .Values.migration.enabled }}
+# ──────────────────────────────────────────────────────────────────────────────
+# Alembic migration Job (pre-install / pre-upgrade hook)
+#
+# 전제: runtime image 의 /opt 에 alembic/ 디렉터리가 존재해야 한다.
+#       이 디렉터리는 Dockerfile (HELM-MIGRATION-FIX 주석 위치) 에서
+#       명시적으로 COPY 되며, 마이그레이션 스크립트(`alembic/versions/*.py`)
+#       와 `alembic/alembic.ini` 가 함께 들어간다.
+#
+# 본 Job 이 컨테이너 안에서 실행하는 명령은:
+#       alembic -c alembic/alembic.ini upgrade head
+# 이며 workingDir 은 /opt 로 고정.
+#
+# 만약 image 변경으로 alembic/ 가 누락되면 본 Job 이 ENOENT 로 실패하면서
+# pre-install/pre-upgrade 단계에서 helm install 자체가 멈추므로,
+# 잘못된 image 가 prod 로 흘러갈 위험은 차단된다.
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "core.fullname" . }}-migration-{{ .Release.Revision }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "core.labels" . | indent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-1"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  activeDeadlineSeconds: 1800
+  template:
+    metadata:
+      labels:
+{{ include "core.selectorLabels" . | indent 8 }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "core.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      containers:
+        - name: migration
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["alembic", "-c", "alembic/alembic.ini", "upgrade", "head"]
+          workingDir: /opt
+          {{- $envFrom := include "core.envFrom" . | trim }}
+          {{- if $envFrom }}
+          envFrom:
+{{ $envFrom | indent 12 }}
+          {{- end }}
+          {{- $mounts := include "core.confVolumeMount" . | trim }}
+          {{- if $mounts }}
+          volumeMounts:
+{{ $mounts | indent 12 }}
+          {{- end }}
+      {{- $volumes := include "core.confVolume" . | trim }}
+      {{- if $volumes }}
+      volumes:
+{{ $volumes | indent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+{{- end }}

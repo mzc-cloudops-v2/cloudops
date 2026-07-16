@@ -1,0 +1,346 @@
+# ==============================================================================
+# CloudOps Core — Service Helm Chart 기본 values
+# ==============================================================================
+# 본 파일은 chart 의 "안전한 기본값" 만을 담는다.
+# - 환경별(dev/stg/prod/cloudopsv2 …) 값은 values-<env>.yaml 로 분리
+# - 비밀값은 values-secret.yaml (gitignore) 또는 existingSecret 참조로 분리
+#
+# 규칙:
+#   * 본 파일은 그대로 `helm template` 이 통과할 수 있어야 한다 (placeholder 금지)
+#   * 환경별 override 가 반드시 필요한 항목은 빈 문자열("") 로 둔다
+#   * 새로 추가되는 매니페스트는 default false 로 두고 환경 values 에서 enable
+# ==============================================================================
+
+enabled: true
+replicas: 1
+
+# API deployment 의 uvicorn 워커 수(프로세스). 공용 env(envFrom ConfigMap) 가
+# 아니라 API 컨테이너 전용 키로 분리해 scheduler pod 로 새지 않게 한다. scheduler
+# 는 같은 image/serve() 진입점이라 SERVER_WORKERS 가 새들면 cron 이 워커 수만큼
+# 중복 발화하므로, scheduler deployment 는 본 값과 무관하게 항상 1 로 고정한다.
+serverWorkers: 1
+
+# nameOverride / fullnameOverride 가 필요할 때만 채우면 된다.
+nameOverride: ""
+fullnameOverride: ""
+
+# ------------------------------------------------------------------------------
+# Container Image
+# ------------------------------------------------------------------------------
+image:
+  # 환경별 values 에서 ECR/GHCR repo 와 tag 로 override
+  repository: ""
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+# ECR / private registry 인증용 imagePullSecrets (umbrella 또는 env 별 주입)
+imagePullSecrets: []
+
+# ------------------------------------------------------------------------------
+# Service / 컨테이너 포트
+# ------------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 8000
+  # 컨테이너가 실제로 listen 하는 포트. 보통 service.port 와 동일.
+  containerPort: 8000
+
+# ------------------------------------------------------------------------------
+# Health probe — ROOT_PATH 와 일치시켜야 한다 (`/<root>/health`)
+# ------------------------------------------------------------------------------
+probe:
+  path: /core/health
+  # startup: 부팅 보호. failureThreshold × periodSeconds 만큼 기동 유예를 주고,
+  # 이 probe 가 통과(=서빙 시작)하기 전까지는 liveness 가 비활성화된다 — 롤아웃
+  # herd(다수 파드 동시 기동) 시 느린 부팅이 liveness 에 조기 사살되는 것을 방지.
+  startup:
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 18     # 10×18 = 180s 기동 유예 (120s 로 줄이려면 12)
+  readiness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    # 한 번 probe 가 ``timeoutSeconds`` 초 안에 응답 못 하면 실패로 카운트.
+    # ``failureThreshold`` 회 연속 실패해야 NotReady 판정 — 일시적 응답 지연
+    # (DB lock / GC pause 등) 으로 traffic 이 빠지는 flap 방지.
+    timeoutSeconds: 3
+    failureThreshold: 3
+  liveness:
+    # startupProbe 통과(=기동 완료) 후에만 동작하므로 initialDelay 0.
+    # 기동 유예는 startup 이 담당하고, liveness 는 "떠 있는 앱이 행 걸렸나"만 본다.
+    initialDelaySeconds: 0
+    periodSeconds: 15
+    # liveness 는 pod 재시작을 결정하는 무거운 결정이라 보수적.
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# ------------------------------------------------------------------------------
+# Non-sensitive env → ConfigMap → envFrom
+# ------------------------------------------------------------------------------
+env:
+  # Application
+  PACKAGE_NAME: "cloudops.core"
+  ROOT_PATH: "/core"
+  LOG_LEVEL: "INFO"
+
+  # ── Secrets Manager (SDK-direct) ──────────────────────
+  # 값이 있으면 base settings 가 부팅 시 AWS Secrets Manager 에서 민감값을
+  # 직접 읽는다(K8s Secret 미생성). 비면 SM source 자체가 안 붙어 기존 env
+  # 모드로 동작(on-prem / 고객 설치형 fallback). umbrella 는 global 한 줄
+  # (global.secretsManagerName / global.secretsManagerRegion) 로 core·plugin
+  # 공용 주입 — env.yaml 이 global 을 읽어 채우고, 아래 값이 있으면 개별 override.
+  # 기본은 빈 값 = env 모드(하위호환, AWS 세팅 전에도 안전).
+  SECRETS_MANAGER_NAME: ""
+  SECRETS_MANAGER_REGION: ""
+
+  # Authorization — ACS (Authorization Service) 연계.
+  # ACS 가 함께 배포되지 않은 환경에서는 반드시 "false".
+  AUTHORIZATION_ENABLED: "false"
+
+  # ACS 연동 정보 (AUTHORIZATION_ENABLED=true 일 때 사용).
+  # 비밀이 아닌 메타정보는 env, API_KEY 류는 secret 으로 관리.
+  ACS_BASE_URL: ""
+  ACS_SERVICE_NAME: "cloudops.core"
+  ACS_SERVICE_VERSION: "0.1.0"
+  ACS_CACHE_TTL_SECONDS: "5"
+
+  # Database (외부 RDS) — 환경 values 에서 host/port/name override
+  DATABASE_HOST: ""
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "cloudops"
+  # 전역 statement_timeout(ms) — 메인 엔진 모든 커넥션에 적용되는 가드레일.
+  # 폭주/비정상 쿼리의 장시간 커넥션 점유를 상한(기본 60s)으로 차단. 0 이면 미적용.
+  DATABASE_STATEMENT_TIMEOUT_MS: "60000"
+
+  # Redis — short name. K8s DNS 의 search domain (`<pod-ns>.svc.cluster.local`)
+  # 이 자동 적용되므로 어느 namespace 에 install 되든 같은 namespace 의 redis
+  # 를 가리킨다. 외부 Redis / 다른 namespace 의 redis 가 필요한 경우에만
+  # 환경 values 에서 FQDN 으로 override.
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+
+  # NATS (JetStream) — 위와 동일 패턴.
+  NATS_URL: "nats://nats:4222"
+
+  # ── Temporal (collect 워크플로우) ─────────────────────
+  # COLLECT_ENGINE — 야간 수집 cron 의 트리거 대상 (core.settings).
+  #   "nats"     : 기존 NATS 수집 파이프라인 (default, 현행 무변경)
+  #   "temporal" : ResourceCollectionRun 워크플로우 시작 (Temporal 전환)
+  # temporal 로 바꿀 땐 아래 TEMPORAL_ADDRESS 를 실 서버로, temporalWorker.enabled
+  # 를 true 로 둔다. TEMPORAL_ENCRYPTION_KEY 는 SDK-direct 로 Secrets Manager 에서
+  # 읽으므로(SECRETS_MANAGER_NAME) 여기서 별도 주입하지 않는다.
+  COLLECT_ENGINE: "nats"
+  # TEMPORAL_ADDRESS 는 여기 두지 않는다 — env.yaml 이 helper(core.temporalAddress)로
+  # global.namespace 기반 자동 주입(<ns>-temporal-frontend.<ns>-temporal). override 는
+  # 아래 top-level ``temporalAddress`` 로.
+  TEMPORAL_NAMESPACE: "default"
+
+  # Resource collect result batch handler 튜닝 (TPM-451 작업 4).
+  # base helper ``on_result_batch`` 의 ``batch_size`` / ``batch_timeout`` 으로
+  # 전달된다. 환경별 권장: 로컬 1/0.0, 스테이징 20/0.3, 프로덕션 100/0.2.
+  COLLECT_BATCH_SIZE: "50"
+  COLLECT_BATCH_WINDOW_SECONDS: "0.2"
+
+  # ── Notification ──────────────────────────────────────
+  # 개발환경 전용: 이메일 +tag 제거 (user+dev@co.kr → user@co.kr)
+  NOTIFICATION_STRIP_EMAIL_PLUS_TAG: "true"
+  # 이메일 CTA 버튼 URL 조립용 프론트엔드 base URL. 비어있으면 버튼 숨김.
+  FRONTEND_BASE_URL: ""
+
+  # ── 캐시 (cost / finops) ──────────────────────────────
+  # 기본값 = 코드 default(settings.py)와 동일. 환경별 값은 values-<env>.yaml 에서
+  # override 한다. pydantic 은 env 를 정상 인식하지만 ConfigMap(envFrom)에 키가
+  # 없으면 컨테이너에 주입되지 않아 override 가 먹지 않으므로 여기에 명시한다.
+  #
+  # Cost 캐시 (cost.analysis) — 현재월+attribution 은 코드 정책상 실시간(미캐시).
+  COST_CACHE_ENABLED: "true"
+  COST_CACHE_TTL_PAST: "3600"
+  COST_CACHE_TTL_CURRENT: "3600"
+  # FinOps 캐시 (cost.finops.analysis) — warm=배치 생존용 장 TTL, adhoc=on-demand.
+  # 현재월+attribution 은 cost 와 동일하게 실시간(미캐시).
+  FINOPS_CACHE_ENABLED: "true"
+  FINOPS_CACHE_TTL_WARM: "86400"   # 24h (코드 default 와 동일)
+  FINOPS_CACHE_TTL_ADHOC: "86400"  # 24h
+  # 고객 1명 내부 위젯 워밍 동시성(세마포어). 동시 고객 수 상한은 warm 전용 DB 풀
+  # (FINOPS_WARM_POOL_SIZE) 이 hard cap 으로 담당. prod 세션 폭주(232/300) 방지로
+  # 8→2 축소 (코드 default 와 동일).
+  FINOPS_WARM_CONCURRENCY: "2"
+  # FinOps warm 전용 DB 엔진/풀 (메인 API 풀 격리). warm 무거운 cost 쿼리가 메인
+  # 풀을 잠식하지 못하게 작은 전용 풀 + statement_timeout 을 쓴다 (코드 default 와 동일).
+  FINOPS_WARM_POOL_SIZE: "2"
+  FINOPS_WARM_MAX_OVERFLOW: "0"
+  FINOPS_WARM_STATEMENT_TIMEOUT_MS: "180000"  # 180s (3m)
+
+# ------------------------------------------------------------------------------
+# Sensitive env → Secret → envFrom
+# 비밀값은 다음 두 방식 중 하나로 주입한다:
+#   1) existingSecret: 외부 Secret(K8s Secret 또는 ESO 가 만들어낸 것) 참조
+#      - secret.data 는 무시되고 chart 가 Secret 을 만들지 않는다
+#   2) values-secret.yaml (gitignore) 에 secret.data.<KEY> 평문 작성 후
+#      `helm install -f values-secret.yaml`
+# ------------------------------------------------------------------------------
+secret:
+  # 외부 Secret 참조. 비어있으면 chart 가 자체 Secret 을 생성한다.
+  existingSecret: ""
+
+  # secret.data — SDK-direct 전환으로 SaaS(AWS) 경로에서는 **비운다**.
+  # 민감값(DATABASE_PASSWORD / SYSTEM_TOKEN / ACS_API_KEY / TEMPORAL_ENCRYPTION_KEY
+  # 등)은 base settings 가 부팅 시 AWS Secrets Manager 에서 직접 읽으므로
+  # (SECRETS_MANAGER_NAME 스위치), 클러스터에 K8s Secret 을 materialize 하지 않는다.
+  # global.temporalEncryptionKey 평문 주입 경로도 제거됨(SDK 가 대체).
+  #
+  # on-prem / 고객 설치형 fallback: SECRETS_MANAGER_NAME 을 비운 채 아래 data 에
+  # 값을 채우면(values-secret.yaml, gitignore) chart 가 Secret 을 만들어 envFrom
+  # 으로 주입 — AWS 의존 0. 값이 하나라도 있어야 shouldCreateSecret 이 Secret 을 만든다.
+  # (KMS_KEY_ID 등 secret 도메인 키도 on-prem 이면 여기에.)
+  data: {}
+
+# ------------------------------------------------------------------------------
+# Shared runtime config → ConfigMap → /opt/cloudops/shared.yaml
+# ------------------------------------------------------------------------------
+conf: {}
+
+# ------------------------------------------------------------------------------
+# ServiceAccount
+# ------------------------------------------------------------------------------
+serviceAccount:
+  create: true
+  # 비우면 fullname 을 사용한다.
+  name: ""
+  # IRSA — SDK-direct 로 AWS Secrets Manager / KMS 를 호출하려면 SA 에 IRSA role
+  # ARN annotation(eks.amazonaws.com/role-arn)이 필요하다. 팀원 role 은 환경별
+  # values(umbrella values-deploy 의 core.serviceAccount.annotations)에서 주입한다.
+  # 본 chart 기본값은 빈 dict — on-prem(비-EKS)에서는 annotation 없이 동작.
+  annotations: {}
+
+# ------------------------------------------------------------------------------
+# Ingress (default disabled)
+# ------------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: core.cloudops.local
+      paths:
+        - path: /core
+          pathType: Prefix
+  tls: []
+  # 예:
+  # tls:
+  #   - secretName: core-tls
+  #     hosts:
+  #       - core.cloudops.local
+
+# ------------------------------------------------------------------------------
+# HorizontalPodAutoscaler (default disabled)
+# ------------------------------------------------------------------------------
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  # 0 이면 memory metric 미사용
+  targetMemoryUtilizationPercentage: 0
+
+# ------------------------------------------------------------------------------
+# PodDisruptionBudget (default disabled)
+# ------------------------------------------------------------------------------
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable 와 minAvailable 는 동시 사용 불가. 빈 문자열이면 minAvailable 만 적용.
+  maxUnavailable: ""
+
+# ------------------------------------------------------------------------------
+# Pod-level overrides
+# ------------------------------------------------------------------------------
+pod:
+  spec: {}
+
+resources: {}
+
+nodeSelector:
+  category: core
+tolerations: []
+affinity: {}
+
+# ------------------------------------------------------------------------------
+# Alembic migration job (pre-install / pre-upgrade hook)
+#
+# 마이그레이션 정책이 확정되지 않은 동안 default 는 비활성화 (false).
+# 활성화하려면 환경별 values 에서 `migration.enabled: true` 로 명시.
+# ------------------------------------------------------------------------------
+migration:
+  enabled: false
+
+# ------------------------------------------------------------------------------
+# Cron scheduler deployment (별 pod, ``replicas: 1``)
+#
+# main core deployment 와 같은 image 를 쓰되, ``SCHEDULER_ENABLED=true`` env 로
+# ``cloudops.base.scheduler`` 만 활성화된 별 pod 를 띄운다. main core pod 들의
+# NATS subscriber group 과 분리하기 위해 module-level ``broker.include_router``
+# 들과 result batch subscriber 등록을 ``main.py`` 에서 ``settings.scheduler_enabled``
+# 분기로 skip 한다 (publish 용 broker 는 그대로 유지).
+#
+# 운영 단일 발화는 leader-election 없이 K8s ``replicas: 1`` 강제로 보장한다.
+# ``scheduler.paths`` 는 도메인 cron 모듈 dotted-path 목록 (JSON list 로 env 주입).
+#
+# default 는 ``scheduler.enabled: false`` — 일반 core pod 들 (REST/NATS) 은 cron
+# 모듈을 로드하지 않는다. ``scheduler.enabled: true`` (별도 core-scheduler
+# deployment) 일 때만 lifespan 의 ``load_scheduler_modules`` 가 paths 의 모듈을
+# import 해 ``@task`` 데코레이터를 evaluate / registry 등록 / start 한다.
+# ------------------------------------------------------------------------------
+scheduler:
+  enabled: false
+  replicas: 1
+  # TPM-130 — collection_job 도메인의 daily-collect cron (@task("0 1 * * *")).
+  # 새 cron 도메인 추가 시 한 줄씩 append.
+  paths:
+    - cloudops.core.resource.collection_job.adapter.inbound.scheduler
+    - cloudops.core.cost.budget.adapter.inbound.scheduler
+    # CLO-200 — mapping-notification cron (thin 트리거 → worker fan-out).
+    # job name=mapping-notification, default enabled=false.
+    - cloudops.core.application.resource_mapping_rule.adapter.inbound.scheduler
+    # CLO — finops 캐시 워밍 cron (@task("0 7 * * *", name=finops-cache-warm,
+    # timezone=Asia/Seoul)). 템플릿 non-attribution 위젯을 활성 고객별로 사전 적재.
+    - cloudops.core.cost.finops.analysis.adapter.inbound.scheduler
+  # Per-job override 진입점 — ``name`` 키 기반 dict. ``@task(name=...)`` 와 같은
+  # 키로 매칭해 spec default (cron / enabled / timezone / misfire_grace_time /
+  # max_instances / coalesce / jitter_sec) 를 환경별로 덮어쓴다. 빈 dict 면 모든
+  # job 이 코드 default 로 동작.
+  #
+  # 실제 사용 예시 / 7 필드 설명은 umbrella chart 의 ``values-deploy.example.yaml``
+  # 의 ``core.scheduler.jobs`` 섹션 정본을 따른다 — subchart values 에는 default
+  # 빈 dict 만 두고 환경별 값은 umbrella values 에서 주입한다.
+  jobs: {}
+  resources: {}
+  nodeSelector:
+    category: core
+  tolerations: []
+  affinity: {}
+
+# Temporal frontend 주소 override — 비우면 helper 가 global.namespace 기반으로
+# ``<ns>-temporal-frontend.<ns>-temporal.svc.cluster.local:7233`` 자동 도출.
+# Temporal 서버 release/ns 가 관례(<global.namespace>-temporal)와 다른 env 에서만 지정.
+temporalAddress: ""
+
+# ------------------------------------------------------------------------------
+# Temporal collect worker deployment (별 pod)
+#
+# main core 와 같은 image 를 쓰되 entrypoint 를 ``python -m
+# cloudops.core.worker`` 로 override 해 collect 워크플로우/활동을 task_queue
+# ``core-collect`` 에서 실행한다. HTTP 안 받는 폴링 워커라 Service/Ingress/HPA/probe
+# 없음. TEMPORAL_* / 암호화키 / DB 는 공용 env·secret(envFrom)에서 주입.
+#
+# default 는 ``enabled: false`` — COLLECT_ENGINE=temporal 로 전환하는 환경에서만
+# ``temporalWorker.enabled: true`` 로 워커 pod 를 띄운다. (엔진=nats 면 불필요)
+# ------------------------------------------------------------------------------
+temporalWorker:
+  enabled: false
+  replicas: 1
+  resources: {}
+  nodeSelector:
+    category: core
+  tolerations: []
+  affinity: {}

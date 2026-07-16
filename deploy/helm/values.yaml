@@ -1,102 +1,116 @@
-# ==============================================================================
-# CloudOps v2 Umbrella Helm Values
-# ==============================================================================
-# 구성 원칙 (v2 monolith):
-#   - core: 단일 monolith chart. 환경별 default 는 core chart 의 values.yaml 이
-#           들고 있고, umbrella 는 enable 만 하거나 매 배포마다 바뀌는 값
-#           (image / DATABASE_HOST / secret) 만 helm install 시 -f / --set 으로
-#           override.
-#   - nats / redis: 인프라 subchart. 자기 chart values 가 정본.
-#   - postgresql: 외부 RDS — subchart 없음.
+# CloudOps Umbrella Helm Values
 #
-# 매 배포마다 채우는 값은 ``values-deploy.example.yaml`` 참고 (gitignore 권장).
-#
-# 설치 예 (private OCI chart 라 GHCR login 필요):
-#   helm registry login ghcr.io -u <gh-user> --password-stdin
-#   helm dependency update deploy/helm
-#   helm upgrade --install cloudops deploy/helm \
-#     -n cloudops --create-namespace \
-#     -f /tmp/values-deploy.yaml
-# ==============================================================================
+# core / nats / redis / seaweedfs 는 charts/ 로컬 subchart, plugin 은
+# templates/plugins/ 가 아래 plugins 맵을 렌더한다. 이미지 태그·시크릿 등
+# 배포값은 -f values-deploy.yaml 로 override.
 
-# ── 전역(공용) 값 ──────────────────────────────────────────────────────────
-# 모든 subchart 가 공유하는 값. helm 의 표준 메커니즘에 따라 subchart 의
-# ``.Values.global`` 으로 자동 주입된다.
-#
-# ``namespace`` 정책:
-#   - core / nats / redis 는 release namespace 에 install (helm install -n <ns>).
-#   - plugin namespace 는 helper 가 ``{global.namespace}-plugin`` 으로 자동 derive
-#     (예: global.namespace=cloudops → plugin namespace=cloudops-plugin).
-#   - 두 namespace 모두 templates/namespaces.yaml 가 자동 생성한다.
+# 전역 공용 값 (subchart / plugin 공유)
 global:
   namespace: "cloudops"
+  # 배포값에서 주입:
+  #   serviceAccount: { name: "cloudops", roleArn: "arn:aws:iam::<acct>:role/<role>" }  # 공유 SA + IRSA
+  #   pluginRoleArn: "arn:aws:iam::<acct>:role/<role>"     # (구) plugin IRSA
+  #   secretsManagerName: "cloudops/prod"                  # SDK-direct 스위치
+  #   secretsManagerRegion: "ap-northeast-2"
 
-# ── 인프라 subchart ────────────────────────────────────────────────────────
+# 인프라 subchart
 redis:
   enabled: true
 
 nats:
   enabled: true
 
-# SeaweedFS (all-in-one) — Temporal claim-check object storage.
-# 서비스명 `seaweedfs` 가 곧 S3 엔드포인트 (seaweedfs.<ns>:8333). 인증(s3.config)의
-# 실제 accessKey/secretKey 는 values-deploy(gitignore) 또는 ESO existingSecret 으로 주입.
+# SeaweedFS (all-in-one) — Temporal claim-check object storage
 seaweedfs:
   enabled: true
 
-# ── core (monolith) ────────────────────────────────────────────────────────
-# core chart 의 values.yaml 이 cloudops namespace 기준의 안전한 default 를
-# 모두 들고 있다. umbrella 는 dependency on/off 만 결정하고, 매 배포마다
-# 바뀌는 값 (image / DATABASE_HOST / secret) 은 ``values-deploy.example.yaml``
-# 을 참고해 helm install 시 -f / --set 으로 주입한다.
+# core (monolith subchart)
 core:
   enabled: true
-  # 마이그레이션 정책이 확정될 때까지 alembic pre-install/upgrade hook 비활성화.
-  # 활성화가 필요하면 환경별 values 에서 `core.migration.enabled: true` 로 override.
   migration:
     enabled: false
-  # Temporal claim-check codec — 대용량 collect payload 를 SeaweedFS(S3)로 offload.
-  # 비민감값(enable/endpoint/bucket/region)만 여기서. endpoint 는 seaweedfs 서비스
-  # (global.namespace 와 일치해야 함). ACCESS/SECRET KEY 는 SM(SDK-fetch)에서 읽으므로
-  # SECRETS_MANAGER_NAME 의 secret 에 TEMPORAL_CLAIMCHECK_ACCESS_KEY / _SECRET_KEY 가
-  # 있어야 하며, 그 값이 seaweedfs identity 와 동일해야 한다.
-  env: &claimcheckEnv
+  # Temporal claim-check codec (비민감값만; access/secret 키는 SM 에서 SDK-direct)
+  env:
     TEMPORAL_CLAIMCHECK_ENABLED: "true"
     TEMPORAL_CLAIMCHECK_ENDPOINT_URL: "http://seaweedfs.cloudops:8333"
     TEMPORAL_CLAIMCHECK_BUCKET: "cloudops-claimcheck"
     TEMPORAL_CLAIMCHECK_REGION: "us-east-1"
 
-# ── plugin: AWS resource collector ────────────────────────────────────────
-# umbrella 는 enable/disable 만. namespace 는 global.namespace 로부터 helper 가
-# 자동 derive 하고, NATS_URL 도 자동 도출되므로 별도 키 불필요. 이미지 / 그 외 env
-# override 는 helm install -f values-deploy.yaml 또는 --set 으로 주입.
-plugin-aws-resource-collector:
+# plugin 공통 기본값 — 모든 plugins.* 에 merge (플러그인 블록 값이 우선)
+pluginDefaults:
   enabled: true
-  # collect_resources 가 반환하는 대용량 payload 를 offload — core 와 동일 codec 설정.
-  env: *claimcheckEnv
+  replicas: 1
+  image:
+    repository: ""             # 배포값에서 주입
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  env:
+    LOG_LEVEL: "INFO"
+  nodeSelector:
+    category: plugin
+  natsConsumer:
+    enabled: true              # 메인 NATS 워커 on/off
+  temporal:
+    enabled: false             # Temporal 사용(=env 에 TEMPORAL_ADDRESS 주입). collector 만 true
+  temporalWorker:
+    enabled: false             # Temporal 워커 파드 on/off
+  serviceAccount:
+    create: true               # 자체 SA 생성 (collector 는 공유 SA 참조라 false override)
+    name: ""
+    annotations: {}
 
-plugin-azure-resource-collector:
-  enabled: true
-  env: *claimcheckEnv
+# plugins — 블록엔 고유값만 (나머지 pluginDefaults 상속)
+plugins:
+  # ── collectors — 공유 SA 참조(create:false), provider env + claim-check + temporal-worker 옵션 ──
+  aws-resource-collector:
+    serviceAccount:
+      create: false
+    temporal:
+      enabled: true
+    env:
+      AWS_CONNECT_TIMEOUT: "5"
+      AWS_READ_TIMEOUT: "30"
+      AWS_MAX_ATTEMPTS: "10"
+      AWS_ALLOWED_REGIONS: ""
+      AWS_EXCLUDED_REGIONS: ""
+      TEMPORAL_NAMESPACE: "default"
+      TEMPORAL_CLAIMCHECK_ENABLED: "true"
+      TEMPORAL_CLAIMCHECK_ENDPOINT_URL: "http://seaweedfs.cloudops:8333"
+      TEMPORAL_CLAIMCHECK_BUCKET: "cloudops-claimcheck"
+      TEMPORAL_CLAIMCHECK_REGION: "us-east-1"
 
-plugin-gcp-resource-collector:
-  enabled: true
-  env: *claimcheckEnv
+  azure-resource-collector:
+    serviceAccount:
+      create: false
+    temporal:
+      enabled: true
+    env:
+      TEMPORAL_NAMESPACE: "default"
+      TEMPORAL_CLAIMCHECK_ENABLED: "true"
+      TEMPORAL_CLAIMCHECK_ENDPOINT_URL: "http://seaweedfs.cloudops:8333"
+      TEMPORAL_CLAIMCHECK_BUCKET: "cloudops-claimcheck"
+      TEMPORAL_CLAIMCHECK_REGION: "us-east-1"
 
-plugin-aws-phd-mon-webhook:
-  enabled: true
+  gcp-resource-collector:
+    serviceAccount:
+      create: false
+    temporal:
+      enabled: true
+    env:
+      GCP_CONNECT_TIMEOUT: "5"
+      GCP_READ_TIMEOUT: "30"
+      GCP_MAX_RETRIES: "3"
+      TEMPORAL_NAMESPACE: "default"
+      TEMPORAL_CLAIMCHECK_ENABLED: "true"
+      TEMPORAL_CLAIMCHECK_ENDPOINT_URL: "http://seaweedfs.cloudops:8333"
+      TEMPORAL_CLAIMCHECK_BUCKET: "cloudops-claimcheck"
+      TEMPORAL_CLAIMCHECK_REGION: "us-east-1"
 
-plugin-aws-sns-mon-webhook:
-  enabled: false
-
-plugin-email-noti-protocol:
-  enabled: true
-
-plugin-prometheus-mon-webhook:
-  enabled: true
-
-plugin-grafana-mon-webhook:
-  enabled: true
-
-plugin-aws-cloudwatch-mon-webhook:
-  enabled: true
+  # ── webhooks — 자체 SA(create:true 상속), env=LOG_LEVEL(상속) ──
+  aws-phd-mon-webhook: {}
+  aws-sns-mon-webhook:
+    enabled: false
+  email-noti-protocol: {}
+  grafana-mon-webhook: {}
+  prometheus-mon-webhook: {}
+  aws-cloudwatch-mon-webhook: {}
