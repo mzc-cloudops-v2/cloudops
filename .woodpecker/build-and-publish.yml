@@ -1,0 +1,35 @@
+# cloudops umbrella helm chart CI — 기존 make_cloudops_chart(gh-pages/chart-releaser) 대체.
+# 태그 = 차트 버전(cloudops repo 는 이미지가 없어 git 태그 = 순수 차트 버전).
+# package: 모든 이벤트에서 helm template 렌더검증 + package (generic plugin 템플릿 포함 전체 검증)
+# push:    태그에서만 Harbor OCI 로 push. privileged 불필요(helm CLI 만).
+when:
+  - event: pull_request       # PR 검증 (package 만)
+  - event: push
+    branch: master            # master 머지 검증
+  - event: tag                # 태그 = 차트 release (Harbor OCI push)
+
+steps:
+  # ── 차트 패키징 (모든 이벤트) — 태그면 태그값, 아니면 dev 버전 ──
+  - name: package
+    image: alpine/helm:3.14.0
+    commands:
+      - if [ -n "$CI_COMMIT_TAG" ]; then VERSION=$(echo "$CI_COMMIT_TAG" | sed 's/^v//'); else VERSION="0.0.0-dev.$(date +%Y%m%d%H%M%S)"; fi
+      - echo "chart version = $VERSION"
+      # 렌더 검증 — self-contained subchart(core/nats/redis/seaweedfs) + generic plugin 템플릿 전체
+      - helm template cloudops deploy/helm > /dev/null && echo "helm template OK"
+      - helm package deploy/helm --version "$VERSION" --app-version "$VERSION" --destination .out
+      - ls -la .out
+
+  # ── Harbor OCI push (태그에서만) ──
+  - name: push
+    image: alpine/helm:3.14.0
+    environment:
+      HARBOR_USERNAME:
+        from_secret: HARBOR_USERNAME
+      HARBOR_PASSWORD:
+        from_secret: HARBOR_PASSWORD
+    commands:
+      - helm registry login registry.sdlc.megaone.com -u "$HARBOR_USERNAME" -p "$HARBOR_PASSWORD"
+      - helm push .out/*.tgz oci://registry.sdlc.megaone.com/cloudops/charts
+    when:
+      - event: tag
