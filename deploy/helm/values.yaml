@@ -54,17 +54,13 @@ pluginDefaults:
     enabled: false             # Temporal 사용(=env 에 TEMPORAL_ADDRESS 주입). collector 만 true
   temporalWorker:
     enabled: false             # Temporal 워커 파드 on/off
-  serviceAccount:
-    create: true               # 자체 SA 생성 (collector 는 공유 SA 참조라 false override)
-    name: ""
-    annotations: {}
+  # SA 는 플러그인이 만들지 않는다 — umbrella 가 plugin ns 에 공유 SA 하나
+  # (global.serviceAccount.name + roleArn) 를 만들고, 전 플러그인이 참조만 한다.
 
 # plugins — 블록엔 고유값만 (나머지 pluginDefaults 상속)
 plugins:
   # ── collectors — 공유 SA 참조(create:false), provider env + claim-check + temporal-worker 옵션 ──
   aws-resource-collector:
-    serviceAccount:
-      create: false
     temporal:
       enabled: true
     env:
@@ -80,8 +76,6 @@ plugins:
       TEMPORAL_CLAIMCHECK_REGION: "us-east-1"
 
   azure-resource-collector:
-    serviceAccount:
-      create: false
     temporal:
       enabled: true
     env:
@@ -92,8 +86,6 @@ plugins:
       TEMPORAL_CLAIMCHECK_REGION: "us-east-1"
 
   gcp-resource-collector:
-    serviceAccount:
-      create: false
     temporal:
       enabled: true
     env:

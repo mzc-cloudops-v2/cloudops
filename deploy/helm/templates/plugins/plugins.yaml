@@ -40,30 +40,10 @@ data:
   {{- end }}
 ---
 {{- end }}
-{{- /* ── ServiceAccount (IRSA) — serviceAccount.create 일 때만 ──── */}}
-{{- if dig "serviceAccount" "create" true $p }}
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: {{ include "plugins.serviceAccountName" $ctx }}
-  namespace: {{ $ns }}
-  labels:
-{{ include "plugins.labels" $ctx | indent 4 }}
-  {{- $roleArn := "" }}
-  {{- if and $root.Values.global $root.Values.global.serviceAccount $root.Values.global.serviceAccount.roleArn }}{{ $roleArn = $root.Values.global.serviceAccount.roleArn }}
-  {{- else if and $root.Values.global $root.Values.global.pluginRoleArn }}{{ $roleArn = $root.Values.global.pluginRoleArn }}{{ end }}
-  {{- $saAnn := dig "serviceAccount" "annotations" (dict) $p }}
-  {{- if or $roleArn $saAnn }}
-  annotations:
-    {{- if $roleArn }}
-    eks.amazonaws.com/role-arn: {{ $roleArn | quote }}
-    {{- end }}
-    {{- with $saAnn }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-  {{- end }}
----
-{{- end }}
+{{- /* ── ServiceAccount: 플러그인은 SA 를 생성하지 않는다.
+       umbrella 의 shared-serviceaccount.yaml 이 plugin namespace 에 공유 SA
+       (global.serviceAccount.name + roleArn) 를 하나 만들고, 모든 플러그인 파드는
+       serviceAccountName 으로 그것을 "참조만" 한다 (통일 SA/IRSA). ── */}}
 {{- /* ── main Deployment (NATS 컨슈머) — natsConsumer.enabled 기본 true ── */}}
 {{- if dig "natsConsumer" "enabled" true $p }}
 apiVersion: apps/v1
